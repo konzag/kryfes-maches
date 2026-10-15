@@ -107,6 +107,9 @@ input#heroName:focus{outline:none;border-color:var(--gold)}
 @keyframes rot{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
 @media (prefers-reduced-motion:reduce){#rotate .ph{animation:none}button{transition:none}}
 .toastline{font-size:15px;color:var(--muted);text-align:center;margin-top:12px}
+.serverbox{margin:0 0 14px;padding:12px 14px;border-radius:16px;background:var(--panel2);text-align:center}
+.serverbox p{margin:0 0 8px;font-size:18px}
+.serverbox input{font-family:var(--font);font-size:18px;padding:10px 12px;border-radius:12px;border:0;width:9em}
 .endnames{font-size:20px;line-height:1.7;text-align:center}
 </style>
 </head>
@@ -155,7 +158,8 @@ input#heroName:focus{outline:none;border-color:var(--gold)}
 const CONFIG = {
   slug: 'kryfes-maches',
   hubPath: '/kryfes-maches',      // when served from the hub, 🏠 goes to '/'
-  serverSave: false,              // level B saves: enabled later by the hub
+  serverSave: true,               // level B saves on the hub (games-hub GAMES saves=True); falls back to the device
+  saveMaxBytes: 65536,            // hub limit for one save (PUT body)
   heroHp: 100,
   heroSpeed: 175,                 // world units per second while exploring
   fightSpeed: 160,
@@ -350,15 +354,91 @@ function makeFamily() {
   return { mom: pick(NAMES.mom), dad: pick(NAMES.dad), sibs: kids.slice(0, Math.random() < .5 ? 1 : 2), pet: { kind: petKind, name: pick(NAMES[petKind]) } };
 }
 
-/* ---------- save (level A: device; level B hook for the hub) ---------- */
+/* ---------- save (level A: device; level B: the hub, see Server) ----------
+   One key game.kryfes-maches.v1 = { v, slots: [3 saves] (device), profile, remote: { <profile id>: [3 saves] },
+   dirty: { '<profile id>:<slot>': true } }. remote/dirty are the level B cache; schema v stays 1 (old saves load). */
 const Store = {
   mem: null,
+  // The 3 slots of one owner: 'local' = this device only, a hub profile id = that profile's cached saves.
+  slots(d, owner) {
+    if (!owner || owner === 'local') return d.slots;
+    d.remote = d.remote || {};
+    if (!Array.isArray(d.remote[owner])) d.remote[owner] = [null, null, null];
+    return d.remote[owner];
+  },
+  markDirty(d, owner, i) { if (owner && owner !== 'local') { d.dirty = d.dirty || {}; d.dirty[owner + ':' + i] = true; } },
   read() {
     try { const s = localStorage.getItem(SAVE_KEY); if (s) { const d = JSON.parse(s); if (d && d.v === SCHEMA && Array.isArray(d.slots)) return d; } } catch (e) { /* storage blocked */ }
     return this.mem || { v: SCHEMA, slots: [null, null, null] };
   },
   write(d) { this.mem = d; try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); return true; } catch (e) { return false; } },
 };
+/* ---------- save level B: the hub, separate for every game (GET/PUT /api/save/<slug>/<profile>/<slot>) ----------
+   Family PIN -> pick a hub profile -> 3 slots. If the hub does not answer (503 without a PIN, offline), the game
+   just keeps saving on the device; dirty slots are sent later. No error is shown to the child. */
+const Server = {
+  on: CONFIG.serverSave, state: 'off', profiles: [], profile: null, // state: 'off' | 'locked' | 'ok'
+  async request(method, path, body) {
+    try {
+      const init = { method, credentials: 'same-origin', headers: {} };
+      if (body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
+      return await fetch(path, init);
+    } catch (e) { return null; } // offline
+  },
+  async refresh() {
+    if (!this.on) { this.state = 'off'; return; }
+    const res = await this.request('GET', '/api/profiles');
+    if (res && res.status === 200) {
+      const b = await res.json().catch(() => ({}));
+      this.profiles = Array.isArray(b.profiles) ? b.profiles : [];
+      this.state = 'ok';
+      if (this.profile && !this.profiles.some(p => p.id === this.profile.id)) this.choose(null);
+    } else this.state = res && res.status === 401 ? 'locked' : 'off';
+  },
+  async unlock(pin) {
+    const res = await this.request('POST', '/api/unlock', { pin });
+    if (res && res.status === 204) { await this.refresh(); return 'ok'; }
+    if (res && res.status === 429) return 'wait';
+    if (res && res.status === 401) return 'wrong';
+    return 'off';
+  },
+  async addProfile(name) {
+    const res = await this.request('POST', '/api/profiles', { name });
+    if (res && res.status === 201) { const p = await res.json().catch(() => null); await this.refresh(); return p; }
+    return null;
+  },
+  choose(p) { this.profile = p ? { id: p.id, name: p.name } : null; const d = Store.read(); d.profile = this.profile; Store.write(d); },
+  owner() { return this.on && this.state === 'ok' && this.profile ? String(this.profile.id) : 'local'; },
+  url(owner, i) { return '/api/save/' + encodeURIComponent(CONFIG.slug) + '/' + encodeURIComponent(owner) + '/' + (i + 1); },
+  async push(owner, i) {
+    if (!this.on || owner === 'local' || this.state !== 'ok') return;
+    const sl = Store.slots(Store.read(), owner)[i];
+    // An erased slot is sent as a tombstone: the hub API has no DELETE.
+    const body = { schema: SCHEMA, saved_at: sl ? sl.saved : Date.now(), data: sl || { deleted: true } };
+    if (JSON.stringify(body).length > CONFIG.saveMaxBytes) return; // stays on the device
+    const res = await this.request('PUT', this.url(owner, i), body);
+    if (res && res.status === 204) { const d = Store.read(); if (d.dirty) delete d.dirty[owner + ':' + i]; Store.write(d); }
+  },
+  async pull(owner, i) {
+    if (!this.on || owner === 'local' || this.state !== 'ok') return;
+    const d0 = Store.read();
+    if (d0.dirty && d0.dirty[owner + ':' + i]) return this.push(owner, i); // the device has the newest copy
+    const res = await this.request('GET', this.url(owner, i));
+    if (!res || res.status !== 200) return;
+    const r = await res.json().catch(() => null);
+    const d = Store.read(), arr = Store.slots(d, owner), local = arr[i];
+    if (r && r.data && typeof r.saved_at === 'number' && (!local || r.saved_at > (local.saved || 0))) {
+      arr[i] = r.data.deleted ? null : r.data; Store.write(d);
+    }
+  },
+  async syncPending() {
+    if (!this.on || this.state !== 'ok') return;
+    for (const key of Object.keys(Store.read().dirty || {})) { const k = key.lastIndexOf(':'); await this.push(key.slice(0, k), +key.slice(k + 1)); }
+  },
+};
+Server.profile = Store.read().profile || null;
+window.addEventListener('online', () => { Server.refresh().then(() => Server.syncPending()); });
+
 function soundPref() { try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch (e) { return true; } }
 function setSoundPref(on) { try { localStorage.setItem(SOUND_KEY, on ? 'on' : 'off'); } catch (e) { /* ignore */ } }
 
@@ -1167,7 +1247,7 @@ function drawPortalBeam(c, p, t) {
    Game state and rules
    ============================================================ */
 const G = {
-  mode: 'title', paused: false, slot: -1, S: null, time: 0,
+  mode: 'title', paused: false, slot: -1, owner: 'local', S: null, time: 0,
   hero: null, cam: { x: 600, y: 600, zoom: 2 }, monsters: [], proj: [], fx: [], tele: [], fight: null,
   cine: null, banner: null, toasts: [], foods: [], portal: null, npcs: [], cars: [], animals: [], freeze: 0, shake: 0,
   prompt: null, dead: 0, end: null, saveTimer: 0,
@@ -1181,8 +1261,10 @@ function newSave(name, gender) {
 }
 function saveGame(showToast) {
   if (!G.S || G.slot < 0) return;
-  const d = Store.read(); G.S.saved = Date.now(); d.slots[G.slot] = JSON.parse(JSON.stringify(G.S));
+  const d = Store.read(), owner = G.owner || 'local'; G.S.saved = Date.now();
+  Store.slots(d, owner)[G.slot] = JSON.parse(JSON.stringify(G.S)); Store.markDirty(d, owner, G.slot);
   const ok = Store.write(d);
+  if (owner !== 'local') Server.push(owner, G.slot); // level B; on failure the slot stays dirty for later
   if (showToast) toast(ok ? 'Αποθηκεύτηκε ✓' : 'Αποθηκεύτηκε μόνο για τώρα (η συσκευή δεν κρατά αποθήκευση)');
   return ok;
 }
@@ -1809,8 +1891,18 @@ function setMode(m) {
   $('touch').hidden = !(touchUI && m === 'city');
   if (m !== 'title') { /* keep screens controlled by showScreen */ }
 }
-function hideScreen() { const s = $('screen'); s.hidden = true; s.className = ''; s.textContent = ''; }
+let curScreen = null;
+function hideScreen() { curScreen = null; const s = $('screen'); s.hidden = true; s.className = ''; s.textContent = ''; }
+/* Slots: render at once with what the device knows, then ask the hub (PIN, profiles, newer saves) and re-render. */
+async function openSlots() {
+  showScreen('slots');
+  if (!Server.on) return;
+  await Server.refresh();
+  if (Server.state === 'ok') { await Server.syncPending(); const o = Server.owner(); if (o !== 'local') for (let i = 0; i < 3; i++) await Server.pull(o, i); }
+  if (curScreen === 'slots' && Server.state !== 'off') showScreen('slots');
+}
 function showScreen(name, data) {
+  curScreen = name;
   const s = $('screen'); s.textContent = ''; s.hidden = false; s.className = name === 'title' ? '' : 'dim';
   const card = el('div', { class: 'card' }); s.appendChild(card);
   if (name === 'title') {
@@ -1818,17 +1910,18 @@ function showScreen(name, data) {
     card.style.background = 'transparent'; card.style.boxShadow = 'none';
     card.append(el('h1', { class: 'title', text: 'Κρυφές Μάχες' }),
       el('p', { class: 'sub', text: 'Ντύσε τον ήρωά σου, βγες στην πόλη της λίμνης και βρες τα πέντε τέρατα που κρύβονται στα στενά της. Μετά, ψάξε τη μαγική πύλη για να γυρίσεις σπίτι.' }),
-      el('div', { class: 'row' }, [btn('▶ Παίξε', () => showScreen('slots'))]),
+      el('div', { class: 'row' }, [btn('▶ Παίξε', () => { openSlots(); })]),
       el('p', { class: 'toastline', text: 'Βελάκια ή WASD: κίνηση · 1 2: ικανότητες · 3: ασπίδα · 4: φαγητό · Space: σούπερ · E: μπες · P: παύση' }));
   }
   if (name === 'slots') {
     card.appendChild(el('h2', { text: 'Ποιος παίζει;' }));
+    if (Server.on && Server.state !== 'off') card.appendChild(serverBox());
     const grid = el('div', { class: 'slots' }); card.appendChild(grid);
-    const d = Store.read();
-    d.slots.forEach((sl, i) => {
+    const d = Store.read(), owner = Server.owner();
+    Store.slots(d, owner).forEach((sl, i) => {
       const box = el('div', { class: 'slot' });
       if (sl) {
-        const del = btn('Σβήσε', () => { if (del.dataset.sure) { const dd = Store.read(); dd.slots[i] = null; Store.write(dd); showScreen('slots'); } else { del.dataset.sure = '1'; del.textContent = 'Σίγουρα; Σβήσε'; del.className = 'danger'; } }, 'ghost');
+        const del = btn('Σβήσε', () => { if (del.dataset.sure) { const dd = Store.read(); Store.slots(dd, owner)[i] = null; Store.markDirty(dd, owner, i); Store.write(dd); Server.push(owner, i); showScreen('slots'); } else { del.dataset.sure = '1'; del.textContent = 'Σίγουρα; Σβήσε'; del.className = 'danger'; } }, 'ghost');
         box.append(portrait(sl.look, 120), el('div', { class: 'nm', text: sl.name }),
           el('div', { class: 'pg', text: 'Τέρατα ' + sl.bosses.length + '/5 · Μάχες ' + (sl.bosses.length + sl.minis.length) + '/20' + (sl.finished ? ' · 🏆' : '') }),
           el('div', { class: 'pg', text: 'Χρόνος παιχνιδιού ' + fmtTime(sl.playMs || 0) }),
@@ -1848,7 +1941,7 @@ function showScreen(name, data) {
     const mk = g => { const [c, x] = canvasOf(150, 170); drawHero(x, defaultLook(g), { x: 75, y: 160, s: 2.2, t: .4 }); const b = el('button', { class: g === gender ? 'on' : '', on: { click: () => { gender = g; sfx('click'); [...pickRow.children].forEach(ch => ch.classList.toggle('on', ch === b)); } } }, [c, el('span', { text: g === 'girl' ? 'Κορίτσι' : 'Αγόρι' })]); return b; };
     pickRow.append(mk('girl'), mk('boy')); card.appendChild(pickRow);
     const inp = el('input', { id: 'heroName', maxlength: '14', autocomplete: 'off', placeholder: 'π.χ. Ηλέκτρα' });
-    const go = btn('Ξεκίνα την περιπέτεια →', () => { const nm = inp.value.trim(); if (!nm) { inp.focus(); return; } G.slot = data.slot; G.S = newSave(nm, gender); saveGame(false); showScreen('intro'); });
+    const go = btn('Ξεκίνα την περιπέτεια →', () => { const nm = inp.value.trim(); if (!nm) { inp.focus(); return; } G.slot = data.slot; G.owner = Server.owner(); G.S = newSave(nm, gender); saveGame(false); showScreen('intro'); });
     go.disabled = true; inp.addEventListener('input', () => { go.disabled = !inp.value.trim(); });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter' && inp.value.trim()) go.click(); });
     card.append(el('label', { class: 'f', for: 'heroName', text: 'Πώς λένε τον ήρωα;' }), inp, el('div', { class: 'row', style: 'margin-top:18px' }, [btn('← Πίσω', () => showScreen('slots'), 'ghost'), go]));
@@ -1883,9 +1976,39 @@ function showScreen(name, data) {
   }
 }
 
+/* Level B box on the slots screen: family PIN when locked, hub profiles when open. Hidden while the hub is off. */
+function serverBox() {
+  const box = el('div', { class: 'serverbox', id: 'serverBox' });
+  const msg = el('p', { class: 'toastline', id: 'serverMsg', role: 'status', text: '' });
+  if (Server.state === 'locked') {
+    const pin = el('input', { id: 'pin', type: 'password', inputmode: 'numeric', maxlength: '4', autocomplete: 'off', 'aria-label': 'Οικογενειακός κωδικός (4 ψηφία)' });
+    const go = btn('Άνοιγμα', async () => {
+      const v = pin.value; pin.value = '';
+      const r = /^[0-9]{4}$/.test(v) ? await Server.unlock(v) : 'wrong';
+      if (r === 'ok') { openSlots(); return; }
+      msg.textContent = { wrong: 'Λάθος κωδικός', wait: 'Περίμενε λίγο και ξαναδοκίμασε', off: 'Το σπίτι δεν απαντά: η αποθήκευση γίνεται μόνο εδώ' }[r];
+    });
+    pin.addEventListener('keydown', e => { if (e.key === 'Enter') go.click(); });
+    box.append(el('p', { text: 'Αποθήκευση στο σπίτι: γράψε τον οικογενειακό κωδικό' }), el('div', { class: 'row' }, [pin, go]));
+  } else {
+    const row = el('div', { class: 'row', id: 'profileList' });
+    Server.profiles.forEach(p => row.appendChild(btn((Server.profile && Server.profile.id === p.id ? '👉 ' : '') + p.name, () => { Server.choose(p); openSlots(); }, 'ghost')));
+    row.appendChild(btn((Server.profile ? '' : '👉 ') + 'Μόνο σε αυτή τη συσκευή', () => { Server.choose(null); showScreen('slots'); }, 'ghost'));
+    const nm = el('input', { id: 'newProfile', maxlength: '20', autocomplete: 'off', 'aria-label': 'Όνομα νέου προφίλ', placeholder: 'Νέο προφίλ' });
+    const add = btn('Νέο', async () => {
+      const v = nm.value.trim(); if (!v) return;
+      const p = await Server.addProfile(v);
+      if (p) { Server.choose(p); openSlots(); } else msg.textContent = 'Δεν έγινε. Δοκίμασε άλλο όνομα.';
+    }, 'ghost');
+    box.append(el('p', { text: 'Προφίλ στο σπίτι:' }), row, el('div', { class: 'row' }, [nm, add]));
+  }
+  box.appendChild(msg);
+  return box;
+}
+
 function loadSlot(i) {
-  const d = Store.read(), sl = d.slots[i]; if (!sl) return;
-  G.slot = i; G.S = sl; const base = defaultLook(sl.gender); G.S.look = Object.assign(base, sl.look);
+  const d = Store.read(), owner = Server.owner(), sl = Store.slots(d, owner)[i]; if (!sl) return;
+  G.slot = i; G.owner = owner; G.S = sl; const base = defaultLook(sl.gender); G.S.look = Object.assign(base, sl.look);
   hideScreen(); heroInit(); G.foods = []; goHouse();
 }
 function goHouse(first) {
