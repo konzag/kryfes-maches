@@ -1,6 +1,7 @@
 // Tiny stand-in for games-hub, for the Playwright tests only (127.0.0.1, no dependencies):
 //   /                         -> index.html with the hub's CSP (tests/hub-csp.mjs)
 //   /static/fonts/comfortaa.css -> empty stylesheet (the real one lives in the hub)
+//   /api/*                    -> 503 (the hub's save API before the owner sets the PIN)
 //   anything else in the repo -> the file, if its type is a static web type
 import fs from 'node:fs';
 import http from 'node:http';
@@ -24,6 +25,11 @@ const TYPES = {
 http
   .createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1');
+    // The hub save API without a PIN file answers 503 everywhere: the game must stay on device saves (level A).
+    if (url.pathname.startsWith('/api/')) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      return res.end('{"error":{"code":"SAVES_DISABLED"}}');
+    }
     if (url.pathname === '/static/fonts/comfortaa.css') {
       res.writeHead(200, { 'Content-Type': 'text/css' });
       return res.end('');
@@ -37,7 +43,7 @@ http
     }
     const body = fs.readFileSync(file);
     const headers = { 'Content-Type': type, 'Cache-Control': 'no-store' };
-    if (type.startsWith('text/html')) headers['Content-Security-Policy'] = gameCsp(body.toString('utf8'));
+    if (type.startsWith('text/html')) headers['Content-Security-Policy'] = gameCsp(body.toString('utf8'), { saves: true }); // games-hub GAMES saves=True
     res.writeHead(200, headers);
     res.end(body);
   })
