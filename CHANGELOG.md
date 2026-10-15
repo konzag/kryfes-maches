@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- Server saves (GAME-STANDARD §5 level B, WP-K2): `CONFIG.serverSave = true`. Family PIN → hub profile → 3 slots via
+  `GET/PUT /api/save/kryfes-maches/<profile>/<slot>` (the current slot JSON, schema 1, < 64 KB). Device saves
+  (level A) stay the fallback: if the hub answers 503 (no PIN yet) or is offline, nothing is shown and dirty slots
+  are sent later. An erased slot is sent as a tombstone (`{deleted: true}`). The device save key keeps schema 1
+  (`remote` and `dirty` are optional additions).
 - «Κρυφές Μάχες» v1 (the version the family tested), as the hub version: `index.html` at the repo root,
   served by games-hub at `/kryfes-maches/`. Game logic unchanged; hub changes only:
   - an HTML document wrapper (`<!doctype html>`, `<html lang="el">`, charset, viewport, favicon), because the v1
