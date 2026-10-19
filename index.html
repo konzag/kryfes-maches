@@ -2091,14 +2091,23 @@ function cue(box) {
 ['wTabsBox', 'wChipsBox', 'wGridBox'].forEach(id => {
   const box = $(id), s = rowOf(box), step = d => { sfx('click'); s.scrollBy({ left: d * s.clientWidth * .7, behavior: 'smooth' }); };
   s.addEventListener('scroll', () => cue(box), { passive: true });
+  s.addEventListener('focusin', e => { if (e.target !== s) keepInView(s, e.target); }); // keyboard: Tab into the row
   box.querySelector('.prev').addEventListener('click', () => step(-1));
   box.querySelector('.next').addEventListener('click', () => step(1));
   if (window.ResizeObserver) new ResizeObserver(() => { showOn(s); cue(box); }).observe(s);
 });
-function showOn(s) {
-  const on = s.querySelector('.on'); if (!on || !s.clientWidth) return;
-  const a = on.offsetLeft - s.offsetLeft - 44, b = a + on.offsetWidth + 88; // keep it clear of the fade + arrow
-  if (a < s.scrollLeft) s.scrollLeft = Math.max(0, a); else if (b > s.scrollLeft + s.clientWidth) s.scrollLeft = b - s.clientWidth;
+function showOn(s) { const on = s.querySelector('.on'); if (on) keepInView(s, on); }
+/* Scroll so `item` is clear of the fade + arrow (44 px each side), always to a snap point (an item start minus the
+   44 px scroll padding), so scroll-snap never moves it back out of view. */
+function keepInView(s, item) {
+  if (!s.clientWidth || s.scrollWidth <= s.clientWidth) return;
+  const start = n => n.offsetLeft - s.offsetLeft, max = s.scrollWidth - s.clientWidth, pad = 44;
+  const a = start(item) - pad, b = start(item) + item.offsetWidth + pad;
+  let x = s.scrollLeft;
+  if (a < x) x = a;
+  else if (b > x + s.clientWidth) x = [...s.children].map(n => start(n) - pad).find(c => c >= b - s.clientWidth) ?? a;
+  x = Math.max(0, Math.min(max, x));
+  if (x !== s.scrollLeft) s.scrollLeft = x;
 }
 function refill(id, fill) {
   const s = $(id), x = s.scrollLeft, y = s.scrollTop; s.textContent = ''; fill(s);

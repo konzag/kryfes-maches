@@ -184,3 +184,33 @@ for (const scheme of ['light', 'dark'] as const) {
     });
   });
 }
+
+// Font metrics differ per OS (CI's Linux fonts are wider than Windows'): with scroll-snap, a focused tab could be
+// snapped back half out of view. Walk tabs + chips by keyboard at many widths with wider letter spacing.
+test('keyboard focus stays in view with other font metrics', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'one project is enough: it sets its own sizes');
+  const fullyIn = (a: Box, b: Box) => a.x >= b.x - 2 && a.x + a.width <= b.x + b.width + 2;
+  await page.addInitScript(() =>
+    document.addEventListener('DOMContentLoaded', () => {
+      const st = document.createElement('style');
+      st.textContent = '.tabs button,.chips button{letter-spacing:1px}';
+      document.head.append(st);
+    }),
+  );
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await toHouse(page);
+  for (let w = 720; w <= 980; w += 40) {
+    await page.setViewportSize({ width: w, height: 1180 });
+    for (const row of ['#wTabs', '#wChips']) {
+      const items = page.locator(`${row} button`);
+      await items.first().focus();
+      for (let i = 1; i < (await items.count()); i++) {
+        await page.keyboard.press('Tab');
+        await page.waitForTimeout(60);
+        expect(fullyIn(await box(page.locator(`${row} button:focus`)), await box(page.locator(row))), `${w}px ${row} ${i}`).toBe(
+          true,
+        );
+      }
+    }
+  }
+});
