@@ -67,7 +67,21 @@ input#heroName:focus{outline:none;border-color:var(--gold)}
 .whead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 .whead h2{margin:0}
 .whead .pg{color:var(--muted);font-size:16px}
-.tabs,.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;flex-shrink:0;scrollbar-width:thin}
+/* horizontal rows (tabs, chips, short-screen options): snap, edge fade + ‹ › only while there is more to see */
+.scroller{position:relative;display:flex;min-width:0;flex-shrink:0}
+.scroller > .tabs,.scroller > .chips,.scroller > .grid{flex:1;min-width:0}
+.tabs,.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x proximity;scroll-padding-inline:40px;scrollbar-width:none}
+.tabs::-webkit-scrollbar,.chips::-webkit-scrollbar{display:none}
+.tabs > *,.chips > *{scroll-snap-align:start;flex-shrink:0}
+.sc{position:absolute;top:50%;z-index:2;width:36px;height:36px;margin-top:-20px;padding:0;border-radius:50%;font-size:24px;line-height:1;
+  background:var(--paper);color:var(--ink);box-shadow:0 2px 0 rgba(0,0,0,.4);display:none}
+.sc.prev{left:-6px}.sc.next{right:-6px}
+.scroller.can-l > .prev,.scroller.can-r > .next{display:block}
+.scroller.can-l > :not(.sc){-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 44px);mask-image:linear-gradient(90deg,transparent 0,#000 44px)}
+.scroller.can-r > :not(.sc){-webkit-mask-image:linear-gradient(270deg,transparent 0,#000 44px);mask-image:linear-gradient(270deg,transparent 0,#000 44px)}
+.scroller.can-l.can-r > :not(.sc){-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 44px,#000 calc(100% - 44px),transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,#000 44px,#000 calc(100% - 44px),transparent 100%)}
+.gridbox{flex:1;min-height:0}
 .tabs button{background:var(--panel2);color:var(--paper);box-shadow:0 4px 0 #1e1638;font-size:17px;white-space:nowrap;padding:10px 14px}
 .tabs button.on{background:var(--rose);color:var(--ink);box-shadow:0 4px 0 #b44a73}
 .chips button{background:transparent;color:var(--muted);box-shadow:none;border:2px solid var(--panel2);font-size:15px;padding:7px 12px;white-space:nowrap;border-radius:999px}
@@ -79,16 +93,48 @@ input#heroName:focus{outline:none;border-color:var(--gold)}
 .opt .sw{width:54px;height:54px;border-radius:50%;margin:11px 0;box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
 .opt span{line-height:1.25;text-align:center;overflow-wrap:anywhere}
 .opt.on{outline:3px solid var(--gold);background:var(--panel2)}
-.opt.lock{opacity:.5}
+.opt.lock{color:var(--muted)}
+.opt.lock canvas,.opt.lock .sw{filter:grayscale(1);opacity:.45}
 .opt .lk{position:absolute;top:6px;right:8px;font-size:14px}
 .opt .nw{position:absolute;top:4px;left:6px;font-size:11px;background:var(--mint);color:var(--ink);border-radius:8px;padding:2px 5px}
-.wbar{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0}
-.hint{color:var(--muted);font-size:15px;min-height:1.3em}
+.wbar{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;margin-top:auto}
+.hint{color:var(--muted);font-size:15px;min-height:1.3em;flex-shrink:0}
+/* short screens (phone landscape): small mirror, one-line hint (tap = whole text), the options as one row of cards
+   between the chips and the buttons; the heading leaves room for the shell buttons at the top right */
+@media (max-height:500px){
+  #house{grid-template-columns:minmax(140px,24%) 1fr;gap:10px;
+    padding-block:calc(8px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-bottom,0px))}
+  .mirrorBox{padding:8px;border-radius:70px 70px 14px 14px}
+  .mirrorBox .glass{border-radius:62px 62px 8px 8px}
+  .mstats{font-size:11px;line-height:1.35;padding:6px 2px 0}
+  .ward{gap:6px}
+  .whead{min-height:56px;padding-right:232px;align-content:flex-start;gap:2px 10px}
+  .whead h2{font-size:20px}
+  .whead .pg{font-size:13px}
+  .tabs button{font-size:15px;padding:8px 12px}
+  .chips button{font-size:13px;padding:5px 10px}
+  .hint{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:0;cursor:pointer}
+  .hint.open{white-space:normal}
+  .gridbox{flex:0 0 auto}
+  .grid{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:88px;overflow:auto hidden;scroll-snap-type:x proximity;
+    scroll-padding-inline:40px;padding:4px 2px 6px;scrollbar-width:none}
+  .grid::-webkit-scrollbar{display:none}
+  .opt{scroll-snap-align:start;padding:6px 4px;min-height:72px;justify-content:center}
+  .opt canvas{width:56px;height:56px}
+  .opt .sw{width:44px;height:44px;margin:6px 0}
+  .opt span{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .wbar{flex-wrap:nowrap}
+  .wbar button{font-size:15px;padding:8px 12px}
+}
 @media (max-width:760px){
-  #house{grid-template-columns:1fr;grid-template-rows:38% 1fr}
+  #house{grid-template-columns:1fr;grid-template-rows:28% 1fr}
   .mirrorBox{border-radius:60px 60px 16px 16px;flex-direction:row;gap:10px}
   .mirrorBox .glass{border-radius:50px 50px 10px 10px}
-  .mstats{width:40%;font-size:13px;padding:0}
+  .mstats{width:40%;font-size:12px;padding:0;overflow:hidden}
+  .whead h2{font-size:22px}
+  .hint{font-size:14px}
+  .wbar{gap:8px}
+  .wbar button{font-size:15px;padding:9px 12px}
 }
 /* touch controls */
 #touch{position:fixed;inset:0;z-index:10;pointer-events:none}
@@ -132,10 +178,10 @@ input#heroName:focus{outline:none;border-color:var(--gold)}
   <div class="mirrorBox"><div class="glass"><canvas id="mirror"></canvas></div><div class="mstats" id="mstats"></div></div>
   <div class="ward">
     <div class="whead"><h2 id="wTitle">Το σπίτι μου</h2><span class="pg" id="wProg"></span></div>
-    <div class="tabs" id="wTabs"></div>
-    <div class="chips" id="wChips"></div>
-    <div class="hint" id="wHint"></div>
-    <div class="grid" id="wGrid"></div>
+    <div class="scroller" id="wTabsBox"><button class="sc prev" tabindex="-1" aria-hidden="true">‹</button><div class="tabs" id="wTabs"></div><button class="sc next" tabindex="-1" aria-hidden="true">›</button></div>
+    <div class="scroller" id="wChipsBox"><button class="sc prev" tabindex="-1" aria-hidden="true">‹</button><div class="chips" id="wChips"></div><button class="sc next" tabindex="-1" aria-hidden="true">›</button></div>
+    <div class="hint" id="wHint" aria-live="polite"></div>
+    <div class="scroller gridbox" id="wGridBox"><button class="sc prev" tabindex="-1" aria-hidden="true">‹</button><div class="grid" id="wGrid"></div><button class="sc next" tabindex="-1" aria-hidden="true">›</button></div>
     <div class="wbar">
       <button class="ghost" id="wRandom">🎲 Τυχαίο</button>
       <button class="ghost" id="wSave">💾 Αποθήκευση</button>
@@ -2034,21 +2080,53 @@ function openWardrobe(first) {
   W.group = won > (S.seenUnlock || 0) && WEAPONS[won] ? 4 : 0; W.cat = GROUPS[W.group][1][0];
   buildTabs(); buildChips(); buildGrid(); mirrorStats();
 }
+/* Horizontal rows with a cue: edge fade + ‹ › while more is hidden on that side; the selected item stays in view.
+   A rebuild keeps the scroll position (only the chosen item moves into view if needed). */
+function rowOf(box) { return box.querySelector('.tabs,.chips,.grid'); }
+function cue(box) {
+  const s = rowOf(box), max = s.scrollWidth - s.clientWidth;
+  box.classList.toggle('can-l', max > 2 && s.scrollLeft > 2);
+  box.classList.toggle('can-r', max > 2 && s.scrollLeft < max - 2);
+}
+['wTabsBox', 'wChipsBox', 'wGridBox'].forEach(id => {
+  const box = $(id), s = rowOf(box), step = d => { sfx('click'); s.scrollBy({ left: d * s.clientWidth * .7, behavior: 'smooth' }); };
+  s.addEventListener('scroll', () => cue(box), { passive: true });
+  s.addEventListener('focusin', e => { if (e.target !== s) keepInView(s, e.target); }); // keyboard: Tab into the row
+  box.querySelector('.prev').addEventListener('click', () => step(-1));
+  box.querySelector('.next').addEventListener('click', () => step(1));
+  if (window.ResizeObserver) new ResizeObserver(() => { showOn(s); cue(box); }).observe(s);
+});
+function showOn(s) { const on = s.querySelector('.on'); if (on) keepInView(s, on); }
+/* Scroll so `item` is clear of the fade + arrow (44 px each side), always to a snap point (an item start minus the
+   44 px scroll padding), so scroll-snap never moves it back out of view. */
+function keepInView(s, item) {
+  if (!s.clientWidth || s.scrollWidth <= s.clientWidth) return;
+  const start = n => n.offsetLeft - s.offsetLeft, max = s.scrollWidth - s.clientWidth, pad = 44;
+  const a = start(item) - pad, b = start(item) + item.offsetWidth + pad;
+  let x = s.scrollLeft;
+  if (a < x) x = a;
+  else if (b > x + s.clientWidth) x = [...s.children].map(n => start(n) - pad).find(c => c >= b - s.clientWidth) ?? a;
+  x = Math.max(0, Math.min(max, x));
+  if (x !== s.scrollLeft) s.scrollLeft = x;
+}
+function refill(id, fill) {
+  const s = $(id), x = s.scrollLeft, y = s.scrollTop; s.textContent = ''; fill(s);
+  s.scrollLeft = x; s.scrollTop = y; showOn(s); cue(s.parentElement);
+}
+$('wHint').addEventListener('click', () => $('wHint').classList.toggle('open'));
 function buildTabs() {
-  const t = $('wTabs'); t.textContent = '';
-  GROUPS.forEach((g, i) => t.appendChild(el('button', { class: i === W.group ? 'on' : '', text: g[0], on: { click: () => { sfx('click'); W.group = i; W.cat = g[1][0]; buildTabs(); buildChips(); buildGrid(); } } })));
+  refill('wTabs', t => GROUPS.forEach((g, i) => t.appendChild(el('button', { class: i === W.group ? 'on' : '', 'aria-pressed': String(i === W.group), text: g[0], on: { click: () => { sfx('click'); W.group = i; W.cat = g[1][0]; buildTabs(); buildChips(); buildGrid(); } } }))));
 }
 function isNew(o) { const S = G.S; return o.unlock > (S.seenUnlock || 0) && o.unlock <= battlesWon(S) && o.unlock > 0; }
 function buildChips() {
-  const c = $('wChips'); c.textContent = '';
-  GROUPS[W.group][1].forEach(k => { const nw = CAT[k].opts.some(isNew); c.appendChild(el('button', { class: k === W.cat ? 'on' : '', text: CAT[k].label + (nw ? ' ●' : ''), on: { click: () => { sfx('click'); W.cat = k; buildChips(); buildGrid(); } } })); });
+  refill('wChips', c => GROUPS[W.group][1].forEach(k => { const nw = CAT[k].opts.some(isNew); c.appendChild(el('button', { class: k === W.cat ? 'on' : '', 'aria-pressed': String(k === W.cat), text: CAT[k].label + (nw ? ' ●' : ''), on: { click: () => { sfx('click'); W.cat = k; buildChips(); buildGrid(); } } })); }));
 }
-function buildGrid() {
-  const g = $('wGrid'); g.textContent = '';
+function buildGrid() { refill('wGrid', fillGrid); }
+function fillGrid(g) {
   const S = G.S, won = battlesWon(S), cat = CAT[W.cat];
   cat.opts.forEach(o => {
     const locked = o.unlock > won, on = S.look[W.cat] === o.id;
-    const b = el('button', { class: 'opt' + (on ? ' on' : '') + (locked ? ' lock' : ''), 'aria-label': (o.label || cat.label) + (locked ? ' (κλειδωμένο)' : '') });
+    const b = el('button', { class: 'opt' + (on ? ' on' : '') + (locked ? ' lock' : ''), 'aria-pressed': String(on), 'aria-label': (o.label || cat.label) + (locked ? ' (κλειδωμένο)' : '') });
     if (cat.view === 'color') { const sw = el('div', { class: 'sw' }); sw.style.background = o.color === 'rainbow' ? 'linear-gradient(135deg,' + RAINBOW.join(',') + ')' : o.color; b.appendChild(sw); }
     else b.appendChild(thumb(W.cat, o));
     let label = o.label || '';
