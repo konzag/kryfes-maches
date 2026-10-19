@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
-// Two Chromium projects: a desktop with keyboard, and a landscape tablet with touch (GAME-STANDARD §3, §7).
+// Chromium projects: a desktop with keyboard, a landscape tablet with touch (GAME-STANDARD §3, §7), and for the
+// dress-up spec also a landscape phone and two portrait windows.
 export default defineConfig({
   testDir: 'tests',
   timeout: 60_000,
@@ -19,5 +20,14 @@ export default defineConfig({
       name: 'tablet',
       use: { viewport: { width: 1180, height: 820 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
     },
+    // Dress-up screen (tests/dressup.spec.ts) also on a landscape phone (touch) and two portrait windows. Portrait
+    // runs without touch: on a touch device in portrait the game shows its «γύρισε τη συσκευή» screen instead.
+    {
+      name: 'phone',
+      testMatch: 'dressup.spec.ts',
+      use: { viewport: { width: 780, height: 360 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+    },
+    { name: 'narrow-portrait', testMatch: 'dressup.spec.ts', use: { viewport: { width: 360, height: 780 } } },
+    { name: 'tablet-portrait', testMatch: 'dressup.spec.ts', use: { viewport: { width: 820, height: 1180 } } },
   ],
 });
