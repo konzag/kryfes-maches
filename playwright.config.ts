@@ -20,14 +20,15 @@ export default defineConfig({
       name: 'tablet',
       use: { viewport: { width: 1180, height: 820 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
     },
-    // Dress-up screen (tests/dressup.spec.ts) also on a landscape phone (touch) and two portrait windows. Portrait
-    // runs without touch: on a touch device in portrait the game shows its «γύρισε τη συσκευή» screen instead.
+    // Dress-up (tests/dressup.spec.ts) and graphics (tests/gfx.spec.ts) also on a landscape phone (touch) and two
+    // portrait windows. Portrait runs without touch: on a touch device in portrait the game shows its «γύρισε τη
+    // συσκευή» screen instead.
     {
       name: 'phone',
-      testMatch: 'dressup.spec.ts',
+      testMatch: /(dressup|gfx)\.spec\.ts/,
       use: { viewport: { width: 780, height: 360 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
     },
-    { name: 'narrow-portrait', testMatch: 'dressup.spec.ts', use: { viewport: { width: 360, height: 780 } } },
-    { name: 'tablet-portrait', testMatch: 'dressup.spec.ts', use: { viewport: { width: 820, height: 1180 } } },
+    { name: 'narrow-portrait', testMatch: /(dressup|gfx)\.spec\.ts/, use: { viewport: { width: 360, height: 780 } } },
+    { name: 'tablet-portrait', testMatch: /(dressup|gfx)\.spec\.ts/, use: { viewport: { width: 820, height: 1180 } } },
   ],
 });

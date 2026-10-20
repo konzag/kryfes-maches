@@ -2,7 +2,27 @@
 
 ## [Unreleased]
 
+### Added
+- GAMES-KM-GFX-01 (OPEN-28, PR #10): neon-80s seaside look chosen with the family. Pastel city, palm trees along the
+  lake, street lamps, a fountain in the square, Greek neon shop signs (no brands). A day/night cycle by itself
+  (`CONFIG.dayLengthSec` = 300, sky keyframes from the approved style preview): a multiply light tint per hour,
+  then a lit pass with windows, lamps, sign letters switching on one by one, the six places of the kids' list
+  (each with its own colour and shape cue), lake reflections, a small light around the hero and a lit fight arena.
+  Glow = pre-rendered 64x64 radial sprites with additive blending; neon lettering pre-rendered per scale; no
+  per-frame `shadowBlur` in the new code (arena ring and beam telegraph moved off it too).
+- Comic words «ΜΠΑΜ!», «ΖΑΠ!», «ΚΡΑΚ!» on big hits and «ΠΟΥΦ!» when an enemy turns into sparks; 1-3 px shake on
+  big hits, never with `prefers-reduced-motion` or «Λιγότερα εφέ».
+- Light + dark shell (GAME-STANDARD v1.2 §3a): CSS tokens for both, `prefers-color-scheme` with a remembered
+  toggle («🌗 Θέμα») and «✨ Λιγότερα εφέ» (fewer particles, no glow sprites or halos, no shake; switches on by
+  itself once after 3 s of frames over 25 ms) on the title and pause screens, stored in the new key
+  `game.kryfes-maches.settings.v1`. Particle cap 260 (80 with fewer effects). Translucent plates behind HUD text.
+- `tests/gfx.spec.ts` (16 runs over 4 sizes, test hook `window.__KM_TEST__`, debug state `window.__kmDebug()`),
+  `tests/fixtures/save-v1.json` (a save written by the previous version), `tests/shots.spec.ts` (README images,
+  only with `SHOTS=1`), `docs/screens/*.jpg`.
+
 ### Changed
+- Save keys, save format, progression, combat rules, controls and the touch layout are unchanged. The clock tower
+  shows the game hour. `button.danger` darker (white text now passes AA).
 - README pass 02 (GAME-STANDARD v1.2 §2a): the README is also the owner's manual-test guide. New sections
   «Οθόνες και ροή» (title, «Ποιος παίζει;», hero, story, the mirror / dress-up screen, city, battle, defeat, pause,
   ending, rotate hint, unlocks), a rewritten «Αποθήκευση» (it still described device-only saves: since WP-K2 the
