@@ -88,6 +88,8 @@ test('keyboard: title → slots → hero → house → city, then 10 s of play, 
 
   const moves = ['ArrowRight', 'ArrowDown', 'KeyA', 'KeyW', 'ArrowLeft', 'KeyS', 'KeyD', 'ArrowUp'];
   const start = await page.evaluate(() => ({ x: G.hero.x, y: G.hero.y }));
+  // The moves go round in a loop, so the end point can land near the start: count the farthest point reached.
+  let moved = 0;
   const end = Date.now() + 10_000;
   for (let i = 0; Date.now() < end; i++) {
     await keepPlaying(page);
@@ -97,8 +99,8 @@ test('keyboard: title → slots → hero → house → city, then 10 s of play, 
     if (i % 5 === 0) await page.keyboard.press('Space');
     await page.waitForTimeout(400);
     await page.keyboard.up(key);
+    moved = Math.max(moved, await page.evaluate((s) => Math.hypot(G.hero.x - s.x, G.hero.y - s.y), start));
   }
-  const moved = await page.evaluate((s) => Math.hypot(G.hero.x - s.x, G.hero.y - s.y), start);
   expect(moved).toBeGreaterThan(20);
 
   await keepPlaying(page);
@@ -126,6 +128,7 @@ test('touch: same flow by finger, joystick + pads visible, 10 s of play, 0 error
   const stick = (await page.locator('#stick').boundingBox())!;
   const cx = stick.x + stick.width / 2, cy = stick.y + stick.height / 2;
   const start = await page.evaluate(() => ({ x: G.hero.x, y: G.hero.y }));
+  let moved = 0; // farthest point reached (the joystick goes round in circles)
   const end = Date.now() + 10_000;
   for (let i = 0; Date.now() < end; i++) {
     await keepPlaying(page, true);
@@ -137,10 +140,10 @@ test('touch: same flow by finger, joystick + pads visible, 10 s of play, 0 error
     });
     await page.waitForTimeout(400);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    moved = Math.max(moved, await page.evaluate((s) => Math.hypot(G.hero.x - s.x, G.hero.y - s.y), start));
     const pad = page.getByRole('button', { name: ['Ικανότητα 1', 'Ικανότητα 2', 'Ασπίδα'][i % 3] });
     if (await pad.isEnabled()) await pad.tap();
   }
-  const moved = await page.evaluate((s) => Math.hypot(G.hero.x - s.x, G.hero.y - s.y), start);
   expect(moved).toBeGreaterThan(20);
   expect(problems).toEqual([]);
 });
