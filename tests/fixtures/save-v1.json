@@ -1,0 +1,67 @@
+{
+  "v": 1,
+  "slots": [
+    {
+      "name": "Δοκιμή",
+      "gender": "girl",
+      "look": {
+        "skin": "c1",
+        "eyes": "c0",
+        "freckles": "none",
+        "blush": "c0",
+        "eyeshadow": "none",
+        "lips": "none",
+        "facepaint": "none",
+        "mask": "none",
+        "hair": "long",
+        "hairColor": "c1",
+        "hat": "none",
+        "earrings": "studs",
+        "top": "tshirt",
+        "topColor": "c8",
+        "pattern": "plain",
+        "bottom": "skirt",
+        "bottomColor": "c10",
+        "shoes": "sneakers",
+        "shoeColor": "c9",
+        "gloves": "none",
+        "necklace": "none",
+        "tattoo": "none",
+        "cape": "none",
+        "capeColor": "c0",
+        "wings": "none",
+        "aura": "none",
+        "armor": "a0",
+        "weapon": "w0"
+      },
+      "bosses": [
+        "rock",
+        "cat"
+      ],
+      "minis": [
+        "m0",
+        "m3"
+      ],
+      "food": 1,
+      "finished": false,
+      "family": {
+        "mom": "Δήμητρα",
+        "dad": "Παναγιώτης",
+        "sibs": [
+          "Ιφιγένεια"
+        ],
+        "pet": {
+          "kind": "dog",
+          "name": "Μπόμπος"
+        }
+      },
+      "seed": 95096611,
+      "seenUnlock": 4,
+      "playMs": 754000,
+      "created": 1792483818699,
+      "saved": 1792483818766
+    },
+    null,
+    null
+  ]
+}
