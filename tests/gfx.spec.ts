@@ -73,6 +73,9 @@ async function keepPlaying(page: Page, tap: boolean) {
 /** 10 s of play: joystick + pads by finger on the tablet, arrows + 1-4 + Space elsewhere. */
 async function play10s(page: Page, tap: boolean) {
   const start = await page.evaluate(() => ({ x: G.hero.x, y: G.hero.y }));
+  // the moves go round in a loop, so count the farthest point reached, not where the hero ends
+  let moved = 0;
+  const far = async () => { moved = Math.max(moved, await page.evaluate((p) => Math.hypot(G.hero.x - p.x, G.hero.y - p.y), start)); };
   const end = Date.now() + 10_000;
   if (tap) {
     const cdp = await page.context().newCDPSession(page);
@@ -85,6 +88,7 @@ async function play10s(page: Page, tap: boolean) {
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: cx + Math.cos(a) * 55, y: cy + Math.sin(a) * 55, id: 1 }] });
       await page.waitForTimeout(400);
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await far();
       const pad = page.getByRole('button', { name: ['Ικανότητα 1', 'Ικανότητα 2', 'Ασπίδα'][i % 3] });
       if (await pad.isEnabled()) await pad.tap();
     }
@@ -98,9 +102,9 @@ async function play10s(page: Page, tap: boolean) {
       if (i % 5 === 0) await page.keyboard.press('Space');
       await page.waitForTimeout(400);
       await page.keyboard.up(key);
+      await far();
     }
   }
-  const moved = await page.evaluate((p) => Math.hypot(G.hero.x - p.x, G.hero.y - p.y), start);
   expect(moved).toBeGreaterThan(20);
 }
 
