@@ -10,6 +10,8 @@ template flag was not set yet).
 - Flow: title → slots (3) → create hero → intro → house (wardrobe) → city. Five bosses (`BOSSES` in the script).
   The fifth one is a SECRET from the kids and the repo is public: never name it, describe it or locate it in docs,
   README, CHANGELOG, issues, commit messages or test names.
+  In `index.html` its name exists only encoded (`SECRET_A`/`SECRET_B`, decoded by `secretWords()` when its fight
+  starts); `tests/secret-scan.mjs` (CI step + `tests/secret.spec.ts`) fails on the plain name in any spelling.
 - `tests/smoke.spec.ts`: Playwright (Chromium) under the hub CSP, projects `desktop` (keyboard) and `tablet`
   (touch): the full first-run flow, 10 s keyboard, 10 s touch, a scripted boss win ('cat').
 - `tests/serve.mjs` + `tests/hub-csp.mjs`: a stand-in for games-hub that sends the hub's game-page CSP.
