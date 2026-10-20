@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Security
+- KM-SECRET-01: boss 5's name is no longer in the page source (the repo is public and the kids must not read it
+  before the fight). `index.html` keeps it only as two code-point constants (`SECRET_A`, `SECRET_B`) that
+  `secretWords()` decodes when that fight starts; the texts shown in the fight are unchanged. New
+  `tests/secret-scan.mjs` (folds every line of every repo file: escapes decoded, case, tonos, final sigma, Greek to
+  Latin; compares a SHA-256, never the name) as a CI step and in `tests/secret.spec.ts` (repo scan, spellings,
+  served responses and DOM before the fight, decoded texts by SHA-256, fixture save). README KM-49. Save keys
+  `game.kryfes-maches.v1`, `game.kryfes-maches.settings.v1`, save format and server save paths are unchanged.
+  The old history still holds the name until the separate history scrub.
+
 ### Added
 - GAMES-KM-GFX-01 (OPEN-28, PR #10): neon-80s seaside look chosen with the family. Pastel city, palm trees along the
   lake, street lamps, a fountain in the square, Greek neon shop signs (no brands). A day/night cycle by itself

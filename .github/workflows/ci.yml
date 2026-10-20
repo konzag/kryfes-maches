@@ -31,6 +31,8 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Secret-name scan (boss 5 never in a repo file, KM-SECRET-01)
+        run: node tests/secret-scan.mjs
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Playwright smoke (keyboard + touch, 0 console errors, hub CSP)
