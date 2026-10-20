@@ -8,57 +8,77 @@
 <link rel="stylesheet" href="/static/fonts/comfortaa.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <style>
-/* Layout: full-bleed canvas city; storybook panels dock over it; HUD buttons hug the safe-area corners. One committed dusk look. */
+/* Layout: full-bleed canvas city; storybook panels dock over it; HUD buttons hug the safe-area corners.
+   The shell (menus, screens, buttons) follows the device theme or the remembered toggle: dark "dusk" or light "pastel".
+   The canvas city keeps its own day/night colours in both. */
 :root{
   --ink:#1b1430; --night:#271d45; --panel:#33285a; --panel2:#43356f;
-  --paper:#fff4dc; --muted:#c9bde6; --gold:#ffc94a; --rose:#ff7aa8; --mint:#6fe3c1; --danger:#ff6b5e;
+  --paper:#fff4dc; --muted:#c9bde6; --gold:#ffc94a; --rose:#ff7aa8; --mint:#6fe3c1; --danger:#c62f45;
+  --bg:var(--ink); --text:var(--paper); --head:var(--gold); --title:var(--gold); --title-sh:#8a3b6b; --focus:var(--mint);
+  --gold-sh:#b8862a; --ghost-sh:#20183c; --tab-sh:#1e1638; --chip-line:var(--panel2); --chip-on:var(--gold);
+  --field:var(--night); --field-line:var(--panel2); --dim:rgba(20,14,38,.72); --plate:rgba(27,20,48,.6);
+  --shell-bg:rgba(39,29,69,.82); --shell-fg:var(--paper); --sc-bg:var(--paper); --sc-fg:var(--ink);
+  --house:radial-gradient(circle at 30% 20%,#4a3466 0,#2b2048 55%,#1b1430 100%);
   --font:'Comfortaa','Trebuchet MS','Segoe UI',system-ui,sans-serif;
   color-scheme:dark;
 }
+:root[data-theme="light"]{
+  --night:#e7dcf7; --panel:#ffffff; --panel2:#efe4fb; --muted:#55477a;
+  --bg:#fbf1ff; --text:#2a1f45; --head:#7a2e8e; --title:#c2185b; --title-sh:#ffd27a; --focus:#6a2fd0;
+  --gold-sh:#c9962e; --ghost-sh:#cdb9ea; --tab-sh:#d6c4ef; --chip-line:#b9a5e0; --chip-on:#80530a;
+  --field:#ffffff; --field-line:#b9a5e0; --dim:rgba(251,241,255,.82); --plate:rgba(255,255,255,.8);
+  --shell-bg:rgba(255,255,255,.9); --shell-fg:#2a1f45; --sc-bg:#2a1f45; --sc-fg:#ffffff;
+  --house:radial-gradient(circle at 30% 20%,#fff6e6 0,#f6e8ff 55%,#e9d8ff 100%);
+  color-scheme:light;
+}
 [hidden]{display:none!important}
-html,body{height:100%;margin:0;background:var(--ink);color:var(--paper);overflow:hidden;font-family:var(--font);
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);overflow:hidden;font-family:var(--font);
   -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
 #game{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;background:var(--ink)}
 button{font-family:var(--font);font-weight:700;cursor:pointer;color:var(--ink);background:var(--gold);border:0;border-radius:14px;
-  padding:12px 18px;font-size:18px;box-shadow:0 4px 0 #b8862a;transition:transform .08s}
-button:active{transform:translateY(3px);box-shadow:0 1px 0 #b8862a}
-button:focus-visible{outline:3px solid var(--mint);outline-offset:3px}
-button.ghost{background:var(--panel2);color:var(--paper);box-shadow:0 4px 0 #20183c}
-button.danger{background:var(--danger);color:#fff;box-shadow:0 4px 0 #a53a32}
+  padding:12px 18px;font-size:18px;box-shadow:0 4px 0 var(--gold-sh);transition:transform .08s}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--gold-sh)}
+button:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+button.ghost{background:var(--panel2);color:var(--text);box-shadow:0 4px 0 var(--ghost-sh)}
+button.danger{background:var(--danger);color:#fff;box-shadow:0 4px 0 #7d1d2c}
 button:disabled{opacity:.45;cursor:default}
+#bLowFx[aria-pressed="true"]{background:var(--mint);color:var(--ink)}
+#bLowFx[aria-pressed="true"]::after{content:' ✓'}
 /* always-visible shell buttons */
 #shell{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));display:flex;gap:8px;z-index:30}
-#shell button{width:52px;height:52px;padding:0;font-size:24px;border-radius:50%;background:rgba(39,29,69,.82);color:var(--paper);box-shadow:0 3px 0 rgba(0,0,0,.35)}
+#shell button{width:52px;height:52px;padding:0;font-size:24px;border-radius:50%;background:var(--shell-bg);color:var(--shell-fg);box-shadow:0 3px 0 rgba(0,0,0,.35)}
 /* screens */
 #screen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-block:calc(70px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-bottom,0px));box-sizing:border-box;overflow:auto}
-#screen.dim{background:rgba(20,14,38,.72)}
+#screen.dim{background:var(--dim)}
 .card{background:var(--panel);border-radius:22px;padding:24px;box-shadow:0 10px 0 rgba(0,0,0,.25);max-width:900px;width:100%;box-sizing:border-box}
-.title{font-size:clamp(44px,9vw,96px);font-weight:700;line-height:.95;margin:0;text-align:center;color:var(--gold);
-  text-shadow:0 5px 0 #8a3b6b,0 10px 24px rgba(0,0,0,.5);letter-spacing:.01em;text-wrap:balance}
+.card.plate{background:var(--plate);box-shadow:none}
+.title{font-size:clamp(44px,9vw,96px);font-weight:700;line-height:.95;margin:0;text-align:center;color:var(--title);
+  text-shadow:0 5px 0 var(--title-sh),0 10px 24px rgba(0,0,0,.35);letter-spacing:.01em;text-wrap:balance}
 .sub{color:var(--muted);text-align:center;font-size:18px;margin:14px auto 26px;max-width:34em;line-height:1.5}
-h2{margin:0 0 14px;font-size:28px;color:var(--gold);text-wrap:balance}
+h2{margin:0 0 14px;font-size:28px;color:var(--head);text-wrap:balance}
 p{line-height:1.55;font-size:18px;margin:0 0 12px}
 .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.row.settings{margin-top:14px}
 .slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
 .slot{background:var(--panel2);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center;min-width:0}
 .slot canvas{width:120px;height:120px;border-radius:50%;background:var(--night)}
 .slot .nm{font-size:22px;font-weight:700}
 .slot .pg{font-size:15px;color:var(--muted);font-variant-numeric:tabular-nums}
 .pick{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
-.pick button{background:var(--panel2);color:var(--paper);box-shadow:0 5px 0 #1e1638;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px}
-.pick button.on{background:var(--gold);color:var(--ink);box-shadow:0 5px 0 #b8862a}
+.pick button{background:var(--panel2);color:var(--text);box-shadow:0 5px 0 var(--tab-sh);display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px}
+.pick button.on{background:var(--gold);color:var(--ink);box-shadow:0 5px 0 var(--gold-sh)}
 .pick canvas{width:150px;height:170px;max-width:100%}
 label.f{display:block;font-size:18px;margin-bottom:8px;color:var(--muted)}
-input#heroName{font-family:var(--font);font-size:24px;font-weight:700;width:100%;box-sizing:border-box;border-radius:14px;border:3px solid var(--panel2);
-  background:var(--night);color:var(--paper);padding:12px 14px;-webkit-user-select:text;user-select:text}
+input#heroName{font-family:var(--font);font-size:24px;font-weight:700;width:100%;box-sizing:border-box;border-radius:14px;border:3px solid var(--field-line);
+  background:var(--field);color:var(--text);padding:12px 14px;-webkit-user-select:text;user-select:text}
 input#heroName:focus{outline:none;border-color:var(--gold)}
 /* wardrobe */
 #house{position:fixed;inset:0;z-index:20;display:grid;grid-template-columns:minmax(260px,38%) 1fr;gap:14px;box-sizing:border-box;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-block:calc(70px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-bottom,0px));
-  background:radial-gradient(circle at 30% 20%,#4a3466 0,#2b2048 55%,#1b1430 100%)}
+  background:var(--house)}
 .mirrorBox{background:linear-gradient(#6b4a2b,#4a321d);border-radius:120px 120px 22px 22px;padding:14px;display:flex;flex-direction:column;min-height:0}
 .mirrorBox .glass{flex:1;min-height:0;border-radius:110px 110px 12px 12px;background:radial-gradient(circle at 50% 35%,#cfe9ff 0,#8fb4d9 60%,#6a8fb8 100%);overflow:hidden;position:relative}
 #mirror{position:absolute;inset:0;width:100%;height:100%}
@@ -74,7 +94,7 @@ input#heroName:focus{outline:none;border-color:var(--gold)}
 .tabs::-webkit-scrollbar,.chips::-webkit-scrollbar{display:none}
 .tabs > *,.chips > *{scroll-snap-align:start;flex-shrink:0}
 .sc{position:absolute;top:50%;z-index:2;width:36px;height:36px;margin-top:-20px;padding:0;border-radius:50%;font-size:24px;line-height:1;
-  background:var(--paper);color:var(--ink);box-shadow:0 2px 0 rgba(0,0,0,.4);display:none}
+  background:var(--sc-bg);color:var(--sc-fg);box-shadow:0 2px 0 rgba(0,0,0,.4);display:none}
 .sc.prev{left:-6px}.sc.next{right:-6px}
 .scroller.can-l > .prev,.scroller.can-r > .next{display:block}
 .scroller.can-l > :not(.sc){-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 44px);mask-image:linear-gradient(90deg,transparent 0,#000 44px)}
@@ -82,13 +102,13 @@ input#heroName:focus{outline:none;border-color:var(--gold)}
 .scroller.can-l.can-r > :not(.sc){-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 44px,#000 calc(100% - 44px),transparent 100%);
   mask-image:linear-gradient(90deg,transparent 0,#000 44px,#000 calc(100% - 44px),transparent 100%)}
 .gridbox{flex:1;min-height:0}
-.tabs button{background:var(--panel2);color:var(--paper);box-shadow:0 4px 0 #1e1638;font-size:17px;white-space:nowrap;padding:10px 14px}
+.tabs button{background:var(--panel2);color:var(--text);box-shadow:0 4px 0 var(--tab-sh);font-size:17px;white-space:nowrap;padding:10px 14px}
 .tabs button.on{background:var(--rose);color:var(--ink);box-shadow:0 4px 0 #b44a73}
-.chips button{background:transparent;color:var(--muted);box-shadow:none;border:2px solid var(--panel2);font-size:15px;padding:7px 12px;white-space:nowrap;border-radius:999px}
-.chips button.on{border-color:var(--gold);color:var(--gold)}
+.chips button{background:transparent;color:var(--muted);box-shadow:none;border:2px solid var(--chip-line);font-size:15px;padding:7px 12px;white-space:nowrap;border-radius:999px}
+.chips button.on{border-color:var(--gold);color:var(--chip-on)}
 .grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;align-content:start;padding:4px 2px 8px}
-.opt{background:var(--panel);border-radius:16px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper);
-  box-shadow:0 3px 0 #1e1638;font-size:13px;position:relative;min-width:0}
+.opt{background:var(--panel);border-radius:16px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--text);
+  box-shadow:0 3px 0 var(--tab-sh);font-size:13px;position:relative;min-width:0}
 .opt canvas{width:76px;height:76px}
 .opt .sw{width:54px;height:54px;border-radius:50%;margin:11px 0;box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
 .opt span{line-height:1.25;text-align:center;overflow-wrap:anywhere}
@@ -148,7 +168,7 @@ input#heroName:focus{outline:none;border-color:var(--gold)}
 #pads button.ready{background:rgba(255,122,168,.9)}
 #pads button.use{background:rgba(111,227,193,.9);color:var(--ink)}
 #pads button:disabled{opacity:.35}
-#rotate{position:fixed;inset:0;z-index:50;background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;font-size:22px;padding:24px}
+#rotate{position:fixed;inset:0;z-index:50;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;font-size:22px;padding:24px}
 #rotate .ph{font-size:72px;animation:rot 1.6s ease-in-out infinite}
 @keyframes rot{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
 @media (prefers-reduced-motion:reduce){#rotate .ph{animation:none}button{transition:none}}
@@ -221,9 +241,21 @@ const CONFIG = {
   revealMini: 120,
   regenOutOfFight: 4,
   superCharge: 100,
+  dayLengthSec: 300,              // one game day (dawn, day, sunset, night) in seconds of play
+  dayStartHour: 9.5,              // every visit starts in the morning
+  forceHour: null,                // tests only (through the test hook): a fixed hour, the clock stands still
+  maxFx: 260,                     // particle cap; «Λιγότερα εφέ» uses maxFxLow
+  maxFxLow: 80,
+  slowFrameMs: 25,                // «Λιγότερα εφέ» switches on by itself (once) when frames stay this slow ...
+  slowFrameSec: 3,                // ... for this long
 };
+/* Test hook: Playwright sets window.__KM_TEST__ = { config: {...} } with addInitScript before the page loads.
+   Nothing a player can reach sets it (no URL parameter, no storage key). */
+const TEST = window.__KM_TEST__ || null;
+if (TEST && TEST.config) Object.assign(CONFIG, TEST.config);
 const SAVE_KEY = 'game.' + CONFIG.slug + '.v1';
 const SOUND_KEY = 'game.' + CONFIG.slug + '.sound';
+const SETTINGS_KEY = 'game.' + CONFIG.slug + '.settings.v1'; // shell theme + effects; never inside the save
 const SCHEMA = 1;
 
 /* ---------- small utils ---------- */
@@ -487,6 +519,32 @@ window.addEventListener('online', () => { Server.refresh().then(() => Server.syn
 
 function soundPref() { try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch (e) { return true; } }
 function setSoundPref(on) { try { localStorage.setItem(SOUND_KEY, on ? 'on' : 'off'); } catch (e) { /* ignore */ } }
+
+/* Shell theme and effects, in their own key (the save keys and their format never change). */
+const Settings = { theme: 'auto', lowFx: false, autoLowFx: false };
+(function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    if (['auto', 'light', 'dark'].includes(s.theme)) Settings.theme = s.theme;
+    Settings.lowFx = s.lowFx === true; Settings.autoLowFx = s.autoLowFx === true;
+  } catch (e) { /* defaults */ }
+})();
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(Settings)); } catch (e) { /* ignore */ } }
+const mqDark = matchMedia('(prefers-color-scheme: dark)'), mqCalm = matchMedia('(prefers-reduced-motion: reduce)');
+const calm = () => mqCalm.matches;
+const themeNow = () => Settings.theme === 'auto' ? (mqDark.matches ? 'dark' : 'light') : Settings.theme;
+function applyTheme() { document.documentElement.dataset.theme = themeNow(); }
+mqDark.addEventListener('change', applyTheme); applyTheme();
+const THEME_LABEL = { auto: '🌗 Θέμα: αυτόματο', light: '☀️ Θέμα: φωτεινό', dark: '🌙 Θέμα: σκοτεινό' };
+function cycleTheme() { Settings.theme = { auto: 'light', light: 'dark', dark: 'auto' }[Settings.theme]; saveSettings(); applyTheme(); }
+function setLowFx(on, auto) { Settings.lowFx = on; if (auto) Settings.autoLowFx = true; saveSettings(); }
+/* Theme + «Λιγότερα εφέ» buttons, on the title and pause screens. */
+function settingsRow() {
+  const th = btn(THEME_LABEL[Settings.theme], () => { cycleTheme(); th.textContent = THEME_LABEL[Settings.theme]; }, 'ghost');
+  const fxb = btn('✨ Λιγότερα εφέ', () => { setLowFx(!Settings.lowFx); fxb.setAttribute('aria-pressed', String(Settings.lowFx)); }, 'ghost');
+  th.id = 'bTheme'; fxb.id = 'bLowFx'; fxb.setAttribute('aria-pressed', String(Settings.lowFx));
+  return el('div', { class: 'row settings' }, [th, fxb]);
+}
 
 /* ============================================================
    Drawing: hero (layered paper-doll), weapons, monsters
@@ -1104,7 +1162,8 @@ const SIGNS = [
   [2050, 800, 'ΒΑΡΚΑ ΓΙΑ ΤΟ ΝΗΣΑΚΙ'], [520, 1655, 'ΑΝΑΤΟΛΗ'], [2640, 640, 'ΝΗΣΑΚΙ'],
 ];
 
-const World = { buildings: [], trees: [], walls: [], decor: [] };
+const World = { buildings: [], trees: [], walls: [], decor: [], lamps: [] };
+const FOUNTAIN = { x: PLAZA.x + 190, y: PLAZA.y + 112, r: 30 }; // the square's fountain (one of the six places that glow)
 function nearAny(x, y, pts, r) { return pts.some(p => dist(x, y, p[0], p[1]) < r); }
 function inRect(x, y, R, pad = 0) { return x > R.x - pad && x < R.x + R.w + pad && y > R.y - pad && y < R.y + R.h + pad; }
 function rectHit(a, b, pad) { return a.x < b.x + b.w + pad && a.x + a.w + pad > b.x && a.y < b.y + b.h + pad && a.y + a.h + pad > b.y; }
@@ -1119,8 +1178,9 @@ function buildWorld() {
     { x: 960, y: 440, w: 1030, h: 180, style: 'stone' }, { x: 560, y: 600, w: 280, h: 340, style: 'mix' }, { x: 950, y: 1290, w: 340, h: 250, style: 'stone' },
     { x: 1730, y: 1050, w: 260, h: 90, style: 'stone' },
   ];
-  const WALL = { stone: ['#d6cbb3', '#c7bba1', '#e2d9c4'], mix: ['#efe6d2', '#e7d3b8', '#d6cbb3', '#f3e9e0'], modern: ['#f2ede4', '#e9e1f0', '#e6f0ea', '#f5e3cf'] };
-  const ROOF = ['#c8553d', '#b5482f', '#d46a4a', '#a8442f'];
+  // pastel seaside palette (same number of R() calls per building as before, so the city layout is unchanged)
+  const WALL = { stone: ['#9EE6CF', '#FFE89A', '#A3DBFF'], mix: ['#FFC3A1', '#C7B6FF', '#FFA3CB', '#FFB98F'], modern: ['#A3DBFF', '#9EE6CF', '#C7B6FF', '#FFE89A'] };
+  const ROOF = ['#F08B8B', '#E6787F', '#F7A08F', '#EE8A9E'];
   zones.forEach(z => {
     for (let gy = z.y; gy < z.y + z.h - 50; gy += 92) for (let gx = z.x; gx < z.x + z.w - 50; gx += 96) {
       if (R() < .12) continue;
@@ -1134,8 +1194,8 @@ function buildWorld() {
     }
   });
   // landmarks
-  World.buildings.push({ x: HOME.x, y: HOME.y, w: HOME.w, h: HOME.h, wall: '#f3e3c3', roof: '#d46a4a', wh: 46, style: 'home' });
-  World.buildings.push({ x: MARKET.x, y: MARKET.y, w: MARKET.w, h: MARKET.h, wall: '#f5f5f0', roof: '#3a86ff', wh: 40, style: 'market' });
+  World.buildings.push({ x: HOME.x, y: HOME.y, w: HOME.w, h: HOME.h, wall: '#FFB3C9', roof: '#2DB3B0', wh: 46, style: 'home' });
+  World.buildings.push({ x: MARKET.x, y: MARKET.y, w: MARKET.w, h: MARKET.h, wall: '#A3DBFF', roof: '#3a86ff', wh: 40, style: 'market' });
   World.buildings.push({ x: CLOCK.x, y: CLOCK.y, w: CLOCK.w, h: CLOCK.h, wall: '#d6cbb3', roof: '#8a5a3b', wh: 110, style: 'clock' });
   World.buildings.push({ x: 2600, y: 700, w: 80, h: 56, wall: '#fbf8f0', roof: '#b5482f', wh: 40, style: 'chapel' });
   World.buildings.push({ x: 2700, y: 660, w: 60, h: 44, wall: '#e2d9c4', roof: '#c8553d', wh: 30, style: 'stone' });
@@ -1146,16 +1206,20 @@ function buildWorld() {
   World.walls.push({ x: C.x, y: C.y, w: C.w, h: t }, { x: C.x, y: C.y, w: t, h: C.h }, { x: C.x + C.w - t, y: C.y, w: t, h: C.h },
     { x: C.x, y: C.y + C.h - t, w: C.gate[0] - C.x, h: t }, { x: C.gate[1], y: C.y + C.h - t, w: C.x + C.w - C.gate[1], h: t });
   // trees
-  const tree = (x, y, r) => { if (nearAny(x, y, [[HOME.spawn.x, HOME.spawn.y], [HOME.door.x, HOME.door.y + 20]], 85) || nearAny(x, y, keep, 140) || nearAny(x, y, keepMini, 90) || nearAny(x, y, keepFood, 50)) return; World.trees.push({ x, y, r: r || 22 + R() * 10, hue: R() }); };
+  const tree = (x, y, r, palm) => { if (nearAny(x, y, [[HOME.spawn.x, HOME.spawn.y], [HOME.door.x, HOME.door.y + 20]], 85) || nearAny(x, y, keep, 140) || nearAny(x, y, keepMini, 90) || nearAny(x, y, keepFood, 50)) return; World.trees.push({ x, y, r: r || 22 + R() * 10, hue: R(), palm: !!palm }); };
   for (let i = 0; i < 26; i++) tree(PARK.x + 20 + R() * (PARK.w - 40), PARK.y + 30 + R() * (PARK.h - 50));
   [[960, 1060], [1280, 1060], [960, 1250], [1280, 1250]].forEach(p => tree(p[0], p[1], 30));
   for (let x = 260; x < 2000; x += 150) { tree(x + R() * 30, 948, 18); tree(x + R() * 30, 1652, 18); }
-  for (let y = 480; y < 1980; y += 130) tree(1990, y + R() * 30, 18);
+  for (let y = 480; y < 1980; y += 130) tree(1990, y + R() * 30, 18, true); // palm trees along the lake
   for (let i = 0; i < 14; i++) { const a = R() * TAU, r = 120 + R() * 190; tree(HOME.x + 95 + Math.cos(a) * r * 1.25, HOME.y + 150 + Math.sin(a) * r * .8); }
-  for (let i = 0; i < 9; i++) { const a = R() * TAU, r = 60 + R() * 160; const x = ISLAND.x + Math.cos(a) * r, y = ISLAND.y + Math.sin(a) * r * .7 - 60; if (y < 820) tree(x, y, 20); }
+  for (let i = 0; i < 9; i++) { const a = R() * TAU, r = 60 + R() * 160; const x = ISLAND.x + Math.cos(a) * r, y = ISLAND.y + Math.sin(a) * r * .7 - 60; if (y < 820) tree(x, y, 20, true); }
   World.trees = World.trees.filter(tr => !World.buildings.some(b => inRect(tr.x, tr.y, b, 10)) && !ROADS.some(r => inRect(tr.x, tr.y, r, -4)) && !lakeBlocks(tr.x, tr.y, 0));
   // grass decor blobs
   for (let i = 0; i < 160; i++) World.decor.push({ x: R() * WORLD.w, y: R() * WORLD.h, r: 20 + R() * 50, k: R() < .5 ? 0 : 1, f: R() < .18 });
+  // street lamps along the roads and the promenade (no randomness: the layout above stays exactly as it was)
+  const lamp = (x, y) => { if (!World.buildings.some(b => inRect(x, y, b, 14)) && !nearAny(x, y, keep, 60) && !nearAny(x, y, PORTAL_SPOTS, 50)) World.lamps.push({ x, y }); };
+  ROADS.forEach(r => { if (r.path) return; if (r.lanes === 'v') for (let y = r.y + 60; y < r.y + r.h - 30; y += 170) lamp(r.x - 10, y); else for (let x = r.x + 60; x < r.x + r.w - 30; x += 170) lamp(x, r.y - 8); });
+  for (let y = 520; y < 1980; y += 200) lamp(PROMENADE.x + PROMENADE.w - 6, y + 60);
 }
 function pick2(R, a) { return a[Math.floor(R() * a.length)]; }
 
@@ -1168,7 +1232,223 @@ function blocked(x, y, r) {
   for (const b of World.buildings) if (x > b.x - r && x < b.x + b.w + r && y > b.y - r && y < b.y + b.h + r) return true;
   for (const w of World.walls) if (x > w.x - r && x < w.x + w.w + r && y > w.y - r && y < w.y + w.h + r) return true;
   for (const t of World.trees) if (dist(x, y, t.x, t.y) < r + 8) return true;
+  if (dist(x, y, FOUNTAIN.x, FOUNTAIN.y) < FOUNTAIN.r + r) return true;
   return false;
+}
+
+/* ---------- day and night, neon (one game day ≈ CONFIG.dayLengthSec of play) ---------- */
+// [hour, sky top, middle, horizon]; the city is seen from above, so the sky colours drive the light tint and the lake
+const SKY = [[0, '#0B0A2A', '#1B1447', '#2C1F5E'], [4.6, '#0B0A2A', '#1B1447', '#2C1F5E'], [5.6, '#2A2464', '#6B4E9E', '#E8A6C6'],
+  [6.6, '#6CA6DC', '#BAD7F0', '#FFD2B4'], [8, '#63C0F4', '#A6E1F7', '#E4FAFF'], [16.4, '#63C0F4', '#A6E1F7', '#E4FAFF'],
+  [17.6, '#5A8ED8', '#F2A8C4', '#FFD49B'], [18.6, '#3B2A7B', '#E3569B', '#FF9B4E'], [19.6, '#1C1651', '#6C308F', '#E15880'],
+  [20.8, '#0B0A2A', '#1B1447', '#2C1F5E'], [24, '#0B0A2A', '#1B1447', '#2C1F5E']];
+const NEON = { pink: '#FF4FA3', cyan: '#39E5FF', yellow: '#FFE14D', lime: '#8CFF6A', violet: '#B98CFF', orange: '#FF9F43' };
+const Sky = { hour: CONFIG.dayStartHour, top: '#63C0F4', mid: '#A6E1F7', hor: '#E4FAFF', dark: 0, neon: 0, lamp: 0, win: 0, warm: 0 };
+const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+function hexMix(a, b, t) {
+  const p = parseInt(a.slice(1), 16), q = parseInt(b.slice(1), 16), ch = s => Math.round(lerp((p >> s) & 255, (q >> s) & 255, t));
+  return '#' + ((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1);
+}
+const alphaHex = a => Math.round(clamp(a, 0, 1) * 255).toString(16).padStart(2, '0');
+function updateSky(dt) {
+  Sky.hour = CONFIG.forceHour != null ? CONFIG.forceHour : (Sky.hour + dt * 24 / CONFIG.dayLengthSec) % 24;
+  const h = Sky.hour, am = h < 12;
+  let i = 0; while (i < SKY.length - 2 && SKY[i + 1][0] <= h) i++;
+  const a = SKY[i], b = SKY[i + 1], k = (h - a[0]) / (b[0] - a[0] || 1);
+  Sky.top = hexMix(a[1], b[1], k); Sky.mid = hexMix(a[2], b[2], k); Sky.hor = hexMix(a[3], b[3], k);
+  Sky.dark = am ? 1 - sstep(4.6, 6.8, h) : sstep(18.6, 20.6, h);
+  Sky.neon = am ? 1 - sstep(5.6, 7.0, h) : sstep(17.6, 19.6, h);
+  Sky.lamp = am ? 1 - sstep(5.8, 6.8, h) : sstep(18.2, 19.2, h);
+  Sky.win = am ? 1 - sstep(5.0, 7.4, h) : sstep(17.2, 20.2, h);
+  Sky.warm = am ? .45 * sstep(5.2, 6.2, h) * (1 - sstep(6.6, 7.8, h)) : sstep(16.6, 18.4, h) * (1 - sstep(19.0, 20.4, h));
+}
+updateSky(0);
+
+/* Glow: one pre-rendered 64x64 radial sprite per colour, drawn with additive blending ('lighter'). No shadowBlur per frame. */
+const GlowCache = {};
+function glowSprite(col) {
+  if (GlowCache[col]) return GlowCache[col];
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+  const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, col); g.addColorStop(.3, col + '88'); g.addColorStop(1, col + '00');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64); return (GlowCache[col] = c);
+}
+function glow(c, x, y, r, col, a) {
+  if (Settings.lowFx || a <= .01) return;
+  const op = c.globalCompositeOperation; c.globalCompositeOperation = 'lighter'; c.globalAlpha = Math.min(1, a);
+  c.drawImage(glowSprite(col), x - r, y - r, r * 2, r * 2); c.globalCompositeOperation = op; c.globalAlpha = 1;
+}
+/* A neon tube: dim "off" colour by day; lit core + halo (a wide translucent stroke) at night. */
+function neonPath(c, path, col, on, w) {
+  const hex = NEON[col], off = hexMix(hex, '#5C5574', .55);
+  c.globalCompositeOperation = 'source-over'; c.globalAlpha = .75; c.strokeStyle = hexMix(off, hex, on); c.lineWidth = w; path(c); c.stroke();
+  if (on < .02) { c.globalAlpha = 1; return; }
+  c.globalCompositeOperation = 'lighter';
+  if (!Settings.lowFx) { c.globalAlpha = .3 * on; c.lineWidth = w * 4; path(c); c.stroke(); }
+  c.globalAlpha = .95 * on; c.strokeStyle = hexMix(hex, '#ffffff', .55); c.lineWidth = Math.max(1, w * .45); path(c); c.stroke();
+  c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+}
+function neonFill(c, path, col, on) {
+  const hex = NEON[col]; c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+  c.fillStyle = hexMix(hexMix(hex, '#5C5574', .55), hex, on); path(c); c.fill();
+  c.lineWidth = 1.5; c.strokeStyle = 'rgba(27,20,48,.7)'; c.stroke(); // outline: the cue is a shape, not only a colour
+}
+
+/* Neon lettering, pre-rendered per scale (off + on canvases); letters switch on one by one at dusk. */
+const SignCache = { scale: 0, map: new Map() };
+if (document.fonts) document.fonts.addEventListener('loadingdone', () => SignCache.map.clear());
+function signArt(text, col, size, scale) {
+  if (SignCache.scale !== scale) { SignCache.scale = scale; SignCache.map.clear(); }
+  const key = text + '|' + col + '|' + size; let a = SignCache.map.get(key); if (a) return a;
+  const font = `700 ${size}px Comfortaa, 'Trebuchet MS', sans-serif`, m = document.createElement('canvas').getContext('2d'); m.font = font;
+  const pad = size * .7, w = m.measureText(text).width + pad * 2, h = size * 2.2, cuts = [];
+  for (let i = 0; i <= text.length; i++) cuts.push(pad + m.measureText(text.slice(0, i)).width);
+  const mk = lit => {
+    const c = document.createElement('canvas'); c.width = Math.ceil(w * scale); c.height = Math.ceil(h * scale);
+    const x = c.getContext('2d'); x.scale(scale, scale); x.font = font; x.textBaseline = 'middle'; x.lineJoin = 'round';
+    const hex = NEON[col];
+    if (lit) { x.shadowColor = hex; x.shadowBlur = size * .6; } // baked once into the cache, never per frame
+    x.lineWidth = size * .16; x.strokeStyle = lit ? hex : hexMix(hex, '#5C5574', .6); x.strokeText(text, pad, h / 2);
+    x.shadowBlur = 0; x.lineWidth = size * .06; x.strokeStyle = lit ? hexMix(hex, '#ffffff', .65) : hexMix(hex, '#2a2440', .4); x.strokeText(text, pad, h / 2);
+    return c;
+  };
+  a = { off: mk(false), on: mk(true), w, h, cuts }; SignCache.map.set(key, a); return a;
+}
+// Greek shop signs, no brands («Πολύ» neon). Board on a post, letters on top.
+const NEON_SIGNS = [
+  { x: 1200, y: 1062, text: 'ΠΙΤΕΣ', col: 'orange' }, { x: 1010, y: 1252, text: 'ΠΑΓΩΤΑ', col: 'pink' },
+  { x: 2045, y: 560, text: 'ΣΙΝΕΜΑ', col: 'violet' }, { x: 2045, y: 1020, text: 'ΠΑΙΧΝΙΔΙΑ', col: 'lime' },
+  { x: 2045, y: 1260, text: 'ΜΠΟΥΓΑΤΣΑ', col: 'yellow' }, { x: 2045, y: 1520, text: 'ΚΟΥΛΟΥΡΙΑ', col: 'cyan' },
+  { x: 2045, y: 1780, text: 'ΠΑΓΩΤΑ', col: 'pink' },
+];
+NEON_SIGNS.forEach((s, i) => { s.seed = i * 7 + 3; });
+function letterOn(i, seed, level) { const d = .08 + (((i * 37 + seed * 11) % 10) / 10) * .4; return clamp((level - d) / .14, 0, 1); }
+function drawSignBoard(c, s) { // day part, y-sorted with the scene
+  c.fillStyle = '#4a4560'; c.fillRect(s.x - 2, s.y - 34, 4, 34);
+  c.fillStyle = 'rgba(27,20,48,.82)'; c.font = '700 13px Comfortaa, sans-serif'; const w = c.measureText(s.text).width + 22; rr(c, s.x - w / 2, s.y - 58, w, 26, 7); c.fill();
+}
+function drawNeonText(c, s, size, level, z, cx, cy) {
+  const scale = clamp(Math.round(z * DPR), 1, 8), a = signArt(s.text, s.col, size, scale), x0 = cx - a.w / 2, y0 = cy - a.h / 2;
+  c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1; c.drawImage(a.off, x0, y0, a.w, a.h);
+  if (level < .02) return;
+  c.globalCompositeOperation = 'lighter';
+  if (Settings.lowFx || level > .97) { c.globalAlpha = Math.min(1, level); c.drawImage(a.on, x0, y0, a.w, a.h); }
+  else for (let i = 0; i < s.text.length; i++) {
+    const on = letterOn(i, s.seed, level); if (on <= 0) continue;
+    const sx = i ? a.cuts[i] : 0, ex = i === s.text.length - 1 ? a.w : a.cuts[i + 1];
+    c.globalAlpha = on; c.drawImage(a.on, sx * scale, 0, (ex - sx) * scale, a.h * scale, x0 + sx, y0, ex - sx, a.h);
+  }
+  c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+}
+
+/* The six places that glow at night (the kids' list). Each one has its own colour AND shape cue (GAME-STANDARD §6). */
+const SHAPE = {
+  flag: (x, y) => c => { c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - 26); c.lineTo(x + 18, y - 20); c.lineTo(x, y - 14); c.closePath(); },
+  star: (x, y) => c => star(c, x, y, 13, 5.5, 5),
+  drop: (x, y) => c => { c.beginPath(); c.moveTo(x, y - 16); c.quadraticCurveTo(x + 11, y - 2, x, y + 6); c.quadraticCurveTo(x - 11, y - 2, x, y - 16); c.closePath(); },
+  diamond: (x, y) => c => { c.beginPath(); c.moveTo(x, y - 12); c.lineTo(x + 10, y); c.lineTo(x, y + 12); c.lineTo(x - 10, y); c.closePath(); },
+  heart: (x, y) => c => heart(c, x, y, 11),
+  moon: (x, y) => c => { c.beginPath(); c.arc(x, y, 10, .6, TAU - .6); c.arc(x + 6, y - 1, 7.5, TAU - .9, .9, true); c.closePath(); },
+};
+const HOME_B = { x: HOME.x, y: HOME.y, w: HOME.w, h: HOME.h, wh: 46 };
+const NEON_PLACES = [
+  { id: 'castle', name: 'Κάστρο', col: 'cyan', cue: 'flag', x: CASTLE.x + CASTLE.w / 2, y: CASTLE.y + CASTLE.h / 2, r: 260, delay: .05,
+    draw(c, on) {
+      const C = CASTLE; neonPath(c, x => { rr(x, C.x - 4, C.y - 30, C.w + 8, C.h + 30, 14); }, 'cyan', on, 3);
+      [[C.x, C.y - 26], [C.x + C.w, C.y - 26], [C.x, C.y + C.h - 18], [C.x + C.w, C.y + C.h - 18]].forEach(p => glow(c, p[0], p[1], 46, NEON.cyan, on * .9));
+      neonFill(c, SHAPE.flag(C.x + 14, C.y - 30), 'cyan', on);
+    } },
+  { id: 'island', name: 'Νησάκι', col: 'lime', cue: 'star', x: ISLAND.x, y: ISLAND.y, r: ISLAND.r + 80, delay: .12,
+    draw(c, on) {
+      neonPath(c, x => { circ(x, ISLAND.x, ISLAND.y, ISLAND.r + 18); }, 'lime', on, 3);
+      for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; glow(c, ISLAND.x + Math.cos(a) * (ISLAND.r + 18), ISLAND.y + Math.sin(a) * (ISLAND.r + 18), 40, NEON.lime, on * .7); }
+      neonFill(c, SHAPE.star(ISLAND.x + ISLAND.r - 30, ISLAND.y + 20), 'lime', on);
+    } },
+  { id: 'plaza', name: 'Πλατεία με σιντριβάνι', col: 'orange', cue: 'drop', x: PLAZA.x + PLAZA.w / 2, y: PLAZA.y + PLAZA.h / 2, r: 240, delay: 0,
+    draw(c, on, t) {
+      neonPath(c, x => { rr(x, PLAZA.x - 6, PLAZA.y - 6, PLAZA.w + 12, PLAZA.h + 12, 22); }, 'orange', on, 3);
+      neonPath(c, x => { ell(x, FOUNTAIN.x, FOUNTAIN.y, FOUNTAIN.r + 4, FOUNTAIN.r * .62 + 4); }, 'cyan', on, 2.5);
+      glow(c, FOUNTAIN.x, FOUNTAIN.y - 16, 54 + Math.sin(t * 2) * 4, NEON.cyan, on);
+      neonFill(c, SHAPE.drop(FOUNTAIN.x, FOUNTAIN.y - 40), 'cyan', on);
+    } },
+  { id: 'market', name: 'Σούπερ μάρκετ', col: 'yellow', cue: 'diamond', x: MARKET.x + MARKET.w / 2, y: MARKET.y + MARKET.h / 2, r: 240, delay: .2,
+    draw(c, on, t, z) {
+      const M = MARKET, top = M.y + M.h - 40 - 22; neonPath(c, x => { rr(x, M.x - 4, top, M.w + 8, 62, 8); }, 'yellow', on, 3);
+      drawNeonText(c, { text: 'ΣΟΥΠΕΡ ΜΑΡΚΕΤ', col: 'yellow', seed: 5 }, 15, on, z, M.x + M.w / 2, top - 4);
+      neonFill(c, SHAPE.diamond(M.x + 16, top - 4), 'yellow', on);
+    } },
+  { id: 'home', name: 'Το σπίτι μας', col: 'pink', cue: 'heart', x: HOME.x + HOME.w / 2, y: HOME.y + HOME.h / 2, r: 200, delay: 0,
+    draw(c, on) {
+      const b = HOME_B, top = b.y - b.wh * .55, base = b.y + b.h - b.wh + 2;
+      neonPath(c, x => { x.beginPath(); x.moveTo(b.x - 5, base); x.lineTo(b.x - 2, top); x.lineTo(b.x + b.w + 2, top); x.lineTo(b.x + b.w + 5, base); x.lineTo(b.x + b.w + 5, b.y + b.h); x.lineTo(b.x - 5, b.y + b.h); x.closePath(); }, 'pink', on, 3);
+      glow(c, b.x + b.w / 2, b.y + b.h - 10, 60, NEON.pink, on * .8);
+      neonFill(c, SHAPE.heart(b.x + b.w / 2, top - 12), 'pink', on);
+    } },
+  { id: 'boat', name: 'Η βάρκα', col: 'violet', cue: 'moon', x: DOCK.main.x + 70, y: DOCK.main.y, r: 420, delay: .15,
+    draw(c, on, t) {
+      [[DOCK.main.x + 70, DOCK.main.y + 6, t], [DOCK.island.x - 64, DOCK.island.y + 8, t + 1]].forEach(p => {
+        const yy = p[1] + boatBob(p[2]); neonPath(c, x => hullPath(x, p[0], yy), 'violet', on, 2.5);
+        glow(c, p[0], yy, 48, NEON.violet, on * .8);
+        neonFill(c, SHAPE.moon(p[0], yy - 38), 'violet', on);
+      });
+    } },
+];
+const placeLevel = p => clamp((Sky.neon - p.delay) / .3, 0, 1);
+
+function drawLampPost(c, l) { c.fillStyle = '#4a4560'; c.fillRect(l.x - 1.5, l.y - 34, 3, 34); c.fillStyle = '#efe6d2'; rr(c, l.x - 5, l.y - 40, 10, 7, 3); c.fill(); }
+
+/* After the scene: the light tint of the hour (one multiply fill), then everything that shines on top of it. */
+function nightPass(c, v, z, t) {
+  const k = Math.max(Sky.dark, Sky.warm * .8), inV = (x, y, m) => x > v.x0 - m && x < v.x1 + m && y > v.y0 - m && y < v.y1 + m;
+  if (k > .01) {
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalCompositeOperation = 'multiply'; c.fillStyle = hexMix('#ffffff', hexMix(Sky.mid, '#ffffff', .42), k); c.fillRect(0, 0, cv.width, cv.height);
+    c.globalCompositeOperation = 'source-over';
+    if (Sky.warm > .02) { // dawn/sunset glow across the screen (a second full-screen pass only while it shows)
+      const g = c.createLinearGradient(0, 0, 0, cv.height); g.addColorStop(0, Sky.top + alphaHex(.2 * Sky.warm)); g.addColorStop(1, Sky.hor + alphaHex(.16 * Sky.warm));
+      c.fillStyle = g; c.fillRect(0, 0, cv.width, cv.height);
+    }
+    c.restore();
+  }
+  // windows (about 4 of 5 light up), then the street lamps with a pool of light on the ground
+  if (Sky.win > .01) {
+    c.fillStyle = '#FFE89A';
+    World.buildings.forEach(b => {
+      if (!inV(b.x + b.w / 2, b.y + b.h / 2, b.w + 60)) return;
+      const wy = b.y + b.h - b.wh + 8;
+      windowXs(b).forEach((wx, i) => { if ((Math.floor(b.x) * 7 + i * 13) % 5 === 0) return; c.globalAlpha = Sky.win * .95; c.fillRect(wx, wy, 9, 10); });
+    });
+    c.globalAlpha = 1;
+  }
+  if (Sky.lamp > .01) {
+    c.globalCompositeOperation = 'lighter';
+    World.lamps.forEach(l => {
+      if (!inV(l.x, l.y, 80)) return;
+      if (!Settings.lowFx) { c.globalAlpha = .45 * Sky.lamp; c.drawImage(glowSprite('#FFD27A'), l.x - 50, l.y - 16, 100, 40); } // soft pool of light
+      c.globalAlpha = Sky.lamp; c.fillStyle = '#FFF4C2'; rr(c, l.x - 5, l.y - 40, 10, 7, 3); c.fill();
+      glow(c, l.x, l.y - 37, 30, '#FFE14D', Sky.lamp);
+    });
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+  }
+  // the six places and the shop signs (dim by day, lit at night)
+  NEON_PLACES.forEach(p => { if (inV(p.x, p.y, p.r)) p.draw(c, placeLevel(p), t, z); });
+  NEON_SIGNS.forEach(s => { if (inV(s.x, s.y, 120)) drawNeonText(c, s, 13, Sky.neon, z, s.x, s.y - 45); });
+  // reflections of the lights on the lake at night: soft vertical streaks under the boat, the island and the promenade signs
+  if (Sky.neon > .05 && !Settings.lowFx) {
+    c.globalCompositeOperation = 'lighter';
+    const streak = (x, y, col, a) => { if (!inV(x, y, 120) || !inLake(x, y + 30, 10)) return; for (let i = 0; i < 4; i++) { const yy = y + 18 + i * 16, wob = Math.sin(t * 2.4 + i * 1.7 + x) * 5; c.globalAlpha = a * (1 - i / 4) * .55; c.fillStyle = col; rr(c, x - 16 + wob, yy, 32 - i * 5, 5, 2.5); c.fill(); } };
+    streak(DOCK.main.x + 70, DOCK.main.y + 12, NEON.violet, Sky.neon);
+    for (let i = 0; i < 6; i++) { const a = .4 + i * .42; streak(ISLAND.x + Math.cos(a) * (ISLAND.r + 30), ISLAND.y + Math.sin(a) * (ISLAND.r + 20), NEON.lime, Sky.neon * .8); }
+    NEON_SIGNS.forEach(s => { if (s.x > PROMENADE.x) streak(s.x + 110, s.y - 20, NEON[s.col], Sky.neon); });
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+  }
+  // the hero carries a little light, and a fight is lit, so play stays readable at night
+  if (Sky.dark > .05 && G.hero && G.mode === 'city') {
+    c.globalCompositeOperation = 'lighter';
+    glow(c, G.hero.x, G.hero.y - 28, 85, '#FFE89A', .42 * Sky.dark);
+    if (G.fight) glow(c, G.fight.cx, G.fight.cy, G.fight.r * 1.3, '#FFF4C2', .3 * Sky.dark);
+    if (Settings.lowFx) { c.globalAlpha = .22 * Sky.dark; c.fillStyle = '#FFE89A'; circ(c, G.hero.x, G.hero.y - 28, 70); c.fill(); }
+    c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+  }
 }
 
 /* ---------- city drawing ---------- */
@@ -1180,9 +1460,10 @@ function drawGround(c, v, t) {
   const g = c.createRadialGradient(HOME.x + 95, HOME.y + 140, 30, HOME.x + 95, HOME.y + 160, 360); g.addColorStop(0, '#b8e08a'); g.addColorStop(1, 'rgba(159,208,117,0)');
   c.fillStyle = g; ell(c, HOME.x + 95, HOME.y + 160, 380, 300); c.fill();
   c.strokeStyle = 'rgba(110,160,70,.35)'; c.lineWidth = 3; [1, .78, .56].forEach(k => { ell(c, HOME.x + 95, HOME.y + 160, 330 * k, 250 * k); c.stroke(); });
-  // lake
+  // lake: day turquoise, it takes the sky's colours at sunset and night
+  const sk = Math.max(Sky.dark, Sky.warm * .7);
   c.fillStyle = '#e9dba9'; ell(c, LAKE.x, LAKE.y, LAKE.rx + 14, LAKE.ry + 14); c.fill();
-  const lg = c.createLinearGradient(LAKE.x - LAKE.rx, 0, LAKE.x + LAKE.rx, 0); lg.addColorStop(0, '#5fb6e0'); lg.addColorStop(1, '#2c78b0');
+  const lg = c.createLinearGradient(LAKE.x - LAKE.rx, 0, LAKE.x + LAKE.rx, 0); lg.addColorStop(0, hexMix('#8EDDF2', Sky.hor, sk * .55)); lg.addColorStop(1, hexMix('#3E9BCB', Sky.mid, sk * .7));
   c.fillStyle = lg; ell(c, LAKE.x, LAKE.y, LAKE.rx, LAKE.ry); c.fill();
   c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 2;
   for (let i = 0; i < 26; i++) { const x = LAKE.x - 380 + (i * 137) % 760, y = LAKE.y - 760 + (i * 211) % 1520; if (!inLake(x, y, 30) || dist(x, y, ISLAND.x, ISLAND.y) < ISLAND.r + 20) continue; const o = Math.sin(t * 1.5 + i) * 6; c.beginPath(); c.moveTo(x - 14 + o, y); c.quadraticCurveTo(x + o, y - 5, x + 14 + o, y); c.stroke(); }
@@ -1191,14 +1472,15 @@ function drawGround(c, v, t) {
   // roads, promenade, plaza, park, parking, castle floor
   c.fillStyle = '#e6d6b2'; rr(c, PROMENADE.x, PROMENADE.y, PROMENADE.w, PROMENADE.h, 30); c.fill();
   ROADS.forEach(r => {
-    c.fillStyle = r.path ? '#d9c08f' : '#9a96a3'; rr(c, r.x, r.y, r.w, r.h, r.path ? 22 : 10); c.fill();
+    c.fillStyle = r.path ? '#d9c08f' : '#5C5574'; rr(c, r.x, r.y, r.w, r.h, r.path ? 22 : 10); c.fill();
     if (r.lanes) { c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 3; c.setLineDash([22, 18]); c.beginPath(); if (r.lanes === 'h') { c.moveTo(r.x + 10, r.y + r.h / 2); c.lineTo(r.x + r.w - 10, r.y + r.h / 2); } else { c.moveTo(r.x + r.w / 2, r.y + 10); c.lineTo(r.x + r.w / 2, r.y + r.h - 10); } c.stroke(); c.setLineDash([]); }
   });
   c.fillStyle = '#ead9b6'; rr(c, PLAZA.x, PLAZA.y, PLAZA.w, PLAZA.h, 18); c.fill();
   c.strokeStyle = 'rgba(160,130,90,.25)'; c.lineWidth = 1.5; for (let x = PLAZA.x + 20; x < PLAZA.x + PLAZA.w; x += 26) { c.beginPath(); c.moveTo(x, PLAZA.y + 6); c.lineTo(x, PLAZA.y + PLAZA.h - 6); c.stroke(); }
+  drawFountain(c, t);
   c.fillStyle = '#8cc566'; rr(c, PARK.x, PARK.y, PARK.w, PARK.h, 30); c.fill();
   c.strokeStyle = '#e6d6b2'; c.lineWidth = 16; c.beginPath(); c.moveTo(PARK.x + 20, PARK.y + 60); c.quadraticCurveTo(PARK.x + 160, PARK.y + 260, PARK.x + PARK.w - 20, PARK.y + PARK.h - 60); c.stroke();
-  c.fillStyle = '#a3a7b0'; rr(c, PARKING.x, PARKING.y, PARKING.w, PARKING.h, 12); c.fill();
+  c.fillStyle = '#7a7290'; rr(c, PARKING.x, PARKING.y, PARKING.w, PARKING.h, 12); c.fill();
   c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 2; for (let x = PARKING.x + 30; x < PARKING.x + PARKING.w - 20; x += 46) { c.beginPath(); c.moveTo(x, PARKING.y + 10); c.lineTo(x, PARKING.y + 60); c.moveTo(x, PARKING.y + PARKING.h - 60); c.lineTo(x, PARKING.y + PARKING.h - 10); c.stroke(); }
   c.fillStyle = '#ddd0b0'; c.fillRect(CASTLE.x, CASTLE.y, CASTLE.w, CASTLE.h);
   // docks + boats
@@ -1209,7 +1491,18 @@ function drawGround(c, v, t) {
   c.strokeStyle = '#e8434b'; c.lineWidth = 5; c.beginPath(); c.moveTo(430, 1850); c.lineTo(430, 1800); c.lineTo(470, 1800); c.lineTo(470, 1850); c.stroke();
   c.strokeStyle = '#3a86ff'; c.beginPath(); c.moveTo(600, 1960); c.lineTo(640, 1920); c.stroke();
 }
-function drawBoat(c, x, y, t) { const b = Math.sin(t * 2) * 2; c.fillStyle = '#e8434b'; c.beginPath(); c.moveTo(x - 36, y - 8 + b); c.lineTo(x + 36, y - 8 + b); c.lineTo(x + 26, y + 10 + b); c.lineTo(x - 26, y + 10 + b); c.closePath(); c.fill(); c.fillStyle = '#f5f1e8'; c.fillRect(x - 28, y - 12 + b, 56, 5); c.fillStyle = '#3a86ff'; c.fillRect(x - 6, y - 26 + b, 12, 16); }
+const boatBob = t => Math.sin(t * 2) * 2;
+function hullPath(c, x, y) { c.beginPath(); c.moveTo(x - 36, y - 8); c.lineTo(x + 36, y - 8); c.lineTo(x + 26, y + 10); c.lineTo(x - 26, y + 10); c.closePath(); }
+function drawBoat(c, x, y, t) { const b = boatBob(t); hullPath(c, x, y + b); c.fillStyle = '#f7f7fb'; c.fill(); c.fillStyle = '#FF6FAE'; c.fillRect(x - 31, y - 2 + b, 62, 4); c.fillStyle = '#39a0d8'; c.fillRect(x - 6, y - 26 + b, 12, 16); }
+function drawFountain(c, t) {
+  const F = FOUNTAIN;
+  c.fillStyle = 'rgba(0,0,0,.15)'; ell(c, F.x + 4, F.y + 6, F.r + 4, F.r * .55 + 4); c.fill();
+  c.fillStyle = '#e7dcc8'; ell(c, F.x, F.y, F.r, F.r * .62); c.fill();
+  c.fillStyle = hexMix('#8EDDF2', Sky.mid, Math.max(Sky.dark, Sky.warm * .7) * .6); ell(c, F.x, F.y, F.r - 6, F.r * .62 - 5); c.fill();
+  c.fillStyle = '#d6cbb3'; rr(c, F.x - 4, F.y - 22, 8, 22, 3); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.75)';
+  for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + t * 1.5, h = 6 + Math.abs(Math.sin(t * 3 + i)) * 6; circ(c, F.x + Math.cos(a) * 9, F.y - 22 - h * .3 + Math.sin(a) * 3, 2); c.fill(); }
+}
 
 function drawBuilding(c, b) {
   const { x, y, w, h, wh } = b;
@@ -1221,7 +1514,7 @@ function drawBuilding(c, b) {
   if (b.style === 'clock') {
     c.fillStyle = b.wall; c.fillRect(x, y + h - wh, w, wh); c.fillStyle = '#bfb39b'; for (let i = 0; i < 6; i++) c.fillRect(x, y + h - wh + i * 18, w, 2);
     c.fillStyle = '#fff'; circ(c, x + w / 2, y + h - wh + 26, 15); c.fill(); c.strokeStyle = '#3a3a48'; c.lineWidth = 2; circ(c, x + w / 2, y + h - wh + 26, 15); c.stroke();
-    const d = new Date(), hh = (d.getHours() % 12) / 12 * TAU, mm = d.getMinutes() / 60 * TAU; c.beginPath(); c.moveTo(x + w / 2, y + h - wh + 26); c.lineTo(x + w / 2 + Math.sin(hh) * 8, y + h - wh + 26 - Math.cos(hh) * 8); c.moveTo(x + w / 2, y + h - wh + 26); c.lineTo(x + w / 2 + Math.sin(mm) * 12, y + h - wh + 26 - Math.cos(mm) * 12); c.stroke();
+    const hh = (Sky.hour % 12) / 12 * TAU, mm = (Sky.hour % 1) * TAU; c.beginPath(); // game time c.moveTo(x + w / 2, y + h - wh + 26); c.lineTo(x + w / 2 + Math.sin(hh) * 8, y + h - wh + 26 - Math.cos(hh) * 8); c.moveTo(x + w / 2, y + h - wh + 26); c.lineTo(x + w / 2 + Math.sin(mm) * 12, y + h - wh + 26 - Math.cos(mm) * 12); c.stroke();
     c.fillStyle = b.roof; c.beginPath(); c.moveTo(x - 4, y + h - wh); c.lineTo(x + w / 2, y + h - wh - 30); c.lineTo(x + w + 4, y + h - wh); c.fill(); return;
   }
   // roof (top) + front wall
@@ -1238,19 +1531,39 @@ function drawBuilding(c, b) {
     c.fillStyle = '#9fe0ff'; c.fillRect(x + 20, wy + 4, w - 40, wh - 22); c.fillStyle = '#e8434b'; c.fillRect(x, wy - 8, w, 10);
     c.fillStyle = '#fff'; c.font = '700 13px Comfortaa, sans-serif'; c.textAlign = 'center'; c.fillText('ΣΟΥΠΕΡ ΜΑΡΚΕΤ', x + w / 2, wy + 1); return;
   }
-  const nwin = Math.max(1, Math.floor((w - 14) / 18));
-  for (let i = 0; i < nwin; i++) { const wx = x + 10 + i * ((w - 20) / nwin); c.fillStyle = '#3d5a73'; c.fillRect(wx, wy, 9, 10); c.fillStyle = '#2f7a45'; c.fillRect(wx - 3, wy, 3, 10); c.fillRect(wx + 9, wy, 3, 10); }
+  windowXs(b).forEach(wx => { c.fillStyle = '#3d5a73'; c.fillRect(wx, wy, 9, 10); c.fillStyle = '#2f7a45'; c.fillRect(wx - 3, wy, 3, 10); c.fillRect(wx + 9, wy, 3, 10); });
   if (b.balcony) { c.strokeStyle = '#3a3a48'; c.lineWidth = 1; c.strokeRect(x + 8, wy + 11, w - 16, 4); }
   if (b.flower) { ['#ff6fb1', '#e8434b', '#ffd23f'].forEach((f, i) => { c.fillStyle = f; circ(c, x + 12 + i * 6, wy + 14, 2.2); c.fill(); }); }
   c.fillStyle = b.style === 'home' ? '#8a3b2a' : '#7b4a2a'; rr(c, x + w / 2 - 6, y + h - 16, 12, 16, 3); c.fill();
   if (b.style === 'home') { c.fillStyle = '#ffd23f'; circ(c, x + w / 2 + 3, y + h - 8, 1.4); c.fill(); c.fillStyle = '#5cc96b'; c.fillRect(x + 8, y + h - 8, 30, 8); c.fillRect(x + w - 38, y + h - 8, 30, 8); }
   if (b.style === 'chapel') { c.fillStyle = '#3a86ff'; circ(c, x + w / 2, top - 4, 12); c.fill(); c.strokeStyle = '#ffd23f'; c.lineWidth = 2; c.beginPath(); c.moveTo(x + w / 2, top - 16); c.lineTo(x + w / 2, top - 28); c.moveTo(x + w / 2 - 5, top - 23); c.lineTo(x + w / 2 + 5, top - 23); c.stroke(); }
 }
+/* Window columns of a house front (shared by the day drawing and the night windows). */
+function windowXs(b) {
+  if (b.style === 'market' || b.style === 'clock' || b.style === 'minaret') return [];
+  const n = Math.max(1, Math.floor((b.w - 14) / 18)), out = [];
+  for (let i = 0; i < n; i++) out.push(b.x + 10 + i * ((b.w - 20) / n));
+  return out;
+}
 function drawWall(c, w) {
   c.fillStyle = '#b9a789'; c.fillRect(w.x, w.y - 18, w.w, w.h + 18); c.fillStyle = '#a8977a'; c.fillRect(w.x, w.y + w.h - 8, w.w, 8);
   c.fillStyle = '#cbb999'; const horiz = w.w > w.h; if (horiz) for (let x = w.x; x < w.x + w.w - 6; x += 16) c.fillRect(x, w.y - 26, 9, 9); else for (let y = w.y; y < w.y + w.h; y += 16) c.fillRect(w.x + 4, y - 26, 12, 9);
 }
+function drawPalm(c, tr, t) {
+  const sway = Math.sin(t * 1.1 + tr.x) * 2.2, top = tr.y - 46, tx = tr.x + 8 + sway;
+  c.fillStyle = 'rgba(0,0,0,.16)'; ell(c, tr.x + 10, tr.y + 2, 20, 6); c.fill();
+  c.strokeStyle = '#a77b4f'; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); c.moveTo(tr.x, tr.y); c.quadraticCurveTo(tr.x - 2, tr.y - 26, tx, top); c.stroke();
+  c.strokeStyle = 'rgba(80,50,30,.35)'; c.lineWidth = 1; for (let k = 1; k < 5; k++) { const yy = tr.y - k * 9; c.beginPath(); c.moveTo(tr.x - 2.5 + k, yy); c.lineTo(tr.x + 2.5 + k, yy - 1); c.stroke(); }
+  c.lineCap = 'round';
+  for (let i = 0; i < 6; i++) {
+    const a = -Math.PI / 2 + (i - 2.5) * .62 + Math.sin(t * 1.3 + i + tr.x) * .05, len = 24 + (i % 2) * 5;
+    const ex = tx + Math.cos(a) * len, ey = top + Math.sin(a) * len * .7 + 10;
+    c.strokeStyle = i % 2 ? '#4f9f57' : '#3f8a4a'; c.lineWidth = 6; c.beginPath(); c.moveTo(tx, top); c.quadraticCurveTo((tx + ex) / 2, top - 10, ex, ey); c.stroke();
+  }
+  c.fillStyle = '#7b5a3a'; circ(c, tx, top + 2, 3.2); c.fill();
+}
 function drawTree(c, tr, t) {
+  if (tr.palm) { drawPalm(c, tr, t); return; }
   c.fillStyle = 'rgba(0,0,0,.18)'; ell(c, tr.x + 6, tr.y + 2, tr.r * .9, tr.r * .35); c.fill();
   c.fillStyle = '#7b5a3a'; rr(c, tr.x - 4, tr.y - 22, 8, 24, 3); c.fill();
   const g = ['#5d9c45', '#4f8f3c', '#68a84c'][Math.floor(tr.hue * 3)];
@@ -1295,7 +1608,7 @@ function drawPortalBeam(c, p, t) {
 const G = {
   mode: 'title', paused: false, slot: -1, owner: 'local', S: null, time: 0,
   hero: null, cam: { x: 600, y: 600, zoom: 2 }, monsters: [], proj: [], fx: [], tele: [], fight: null,
-  cine: null, banner: null, toasts: [], foods: [], portal: null, npcs: [], cars: [], animals: [], freeze: 0, shake: 0,
+  cine: null, banner: null, toasts: [], foods: [], portal: null, npcs: [], cars: [], animals: [], freeze: 0, shake: 0, comicCd: 0,
   prompt: null, dead: 0, end: null, saveTimer: 0,
 };
 const upGR = s => s.toUpperCase().normalize('NFD').replace(/\u0301/g, '').normalize('NFC');
@@ -1386,8 +1699,18 @@ function estDps(w) { return w.dmg * w.rate * 1.35; }
 function arenaClamp(o, pad) { const f = G.fight; if (!f) return; const d = dist(o.x, o.y, f.cx, f.cy), m = f.r - pad; if (d > m) { o.x = f.cx + (o.x - f.cx) / d * m; o.y = f.cy + (o.y - f.cy) / d * m; } }
 function liveEnemies() { return G.fight ? G.fight.enemies.filter(e => !e.dead && !e.dying) : []; }
 function nearestEnemy(x, y) { let best = null, bd = 1e9; liveEnemies().forEach(e => { const d = dist(x, y, e.x, e.y - e.size * .3); if (d < bd) { bd = d; best = e; } }); return best; }
-function fx(kind, x, y, o) { G.fx.push(Object.assign({ kind, x, y, t: 0, dur: .6, vx: 0, vy: 0 }, o || {})); }
-function sparkBurst(x, y, n, cols, sp) { for (let i = 0; i < n; i++) { const a = Math.random() * TAU, v = rnd(.3, 1) * (sp || 260); fx('spark', x, y, { vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, dur: rnd(.5, 1.1), col: pick(cols || RAINBOW), r: rnd(2, 5) }); } }
+function fx(kind, x, y, o) {
+  if (G.fx.length >= (Settings.lowFx ? CONFIG.maxFxLow : CONFIG.maxFx)) { if (kind === 'spark' || kind === 'snow' || kind === 'puff') return; G.fx.shift(); }
+  G.fx.push(Object.assign({ kind, x, y, t: 0, dur: .6, vx: 0, vy: 0 }, o || {}));
+}
+/* Comic words on big hits (never blood: enemies still turn into sparks). One word at a time. */
+const COMIC_HIT = ['ΜΠΑΜ!', 'ΖΑΠ!', 'ΚΡΑΚ!'];
+function comic(x, y, word) {
+  if (!word && G.comicCd > 0) return; G.comicCd = .45;
+  fx('comic', x, y, { text: word || pick(COMIC_HIT), col: pick([NEON.yellow, NEON.pink, NEON.cyan, NEON.lime]), dur: .9, vy: calm() ? 0 : -40, rot: rnd(-.18, .18) });
+}
+function shakeHit(s) { if (!calm() && !Settings.lowFx) G.shake = Math.max(G.shake, s); }
+function sparkBurst(x, y, n, cols, sp) { if (Settings.lowFx) n = Math.ceil(n * .35); for (let i = 0; i < n; i++) { const a = Math.random() * TAU, v = rnd(.3, 1) * (sp || 260); fx('spark', x, y, { vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, dur: rnd(.5, 1.1), col: pick(cols || RAINBOW), r: rnd(2, 5) }); } }
 function dmgText(x, y, v, col) { fx('text', x + rnd(-8, 8), y, { text: String(Math.round(v)), col: col || '#fff4dc', vy: -60, dur: .8 }); }
 
 function startFight(m) {
@@ -1434,10 +1757,11 @@ function hitEnemy(e, dmg) {
   e.hp -= dmg; e.flash = .1; dmgText(e.x, e.y - e.size * .9, dmg);
   G.hero.superC = Math.min(CONFIG.superCharge, G.hero.superC + dmg * (G.fight && G.fight.type === 'boss' ? .32 : .6));
   sfx('hit');
+  if (dmg >= weaponOf(G.S.look).dmg * 1.4) { comic(e.x, e.y - e.size * 1.15); shakeHit(.12); } // abilities and super
   if (e.hp <= 0) {
     e.hp = 0;
-    if (e.kind === 'mini') { e.dead = true; sparkBurst(e.x, e.y - 20, 24, ['#c9b5ff', '#fff3a8', '#ff9bf0']); sfx('pop'); }
-    else { e.dying = .001; sparkBurst(e.x, e.y - e.size * .4, 80, null, 380); sfx('bigpop'); }
+    if (e.kind === 'mini') { e.dead = true; sparkBurst(e.x, e.y - 20, 24, ['#c9b5ff', '#fff3a8', '#ff9bf0']); sfx('pop'); comic(e.x, e.y - 50, 'ΠΟΥΦ!'); }
+    else { e.dying = .001; sparkBurst(e.x, e.y - e.size * .4, 80, null, 380); sfx('bigpop'); comic(e.x, e.y - e.size * 1.2, 'ΠΟΥΦ!'); shakeHit(.4); }
   }
 }
 function useAbility(slot) {
@@ -1467,13 +1791,13 @@ function useSuper() {
   G.cine = { kind: 'super', t: 0, dur: 1.15, text: upGR('Σούπερ ' + weaponOf(G.S.look).label) + '!', done: () => {
     const w = weaponOf(G.S.look); G.proj = G.proj.filter(p => p.owner === 'hero'); G.tele = G.tele.filter(t => t.friendly);
     fx('ring', h.x, h.y - 30, { r: G.fight ? G.fight.r + 40 : 300, dur: .7, col: '#fff3a8' }); sparkBurst(h.x, h.y - 40, 60, ['#fff3a8', '#ffd23f', '#ffffff']);
-    liveEnemies().forEach(e => hitEnemy(e, w.dmg * 9)); G.shake = .5;
+    liveEnemies().forEach(e => hitEnemy(e, w.dmg * 9)); shakeHit(.5);
   } };
 }
 function heroHurt(dmg, src) {
   const h = G.hero; if (h.inv > 0 || h.shield > 0 || h.dash > 0 || G.dead) return;
   const def = armorDef(G.S.look); dmg *= (1 - .09 * def);
-  h.hp -= dmg; h.inv = .75; h.hurt = .35; h.expr = 'ouch'; h.exprT = .5; G.shake = .25;
+  h.hp -= dmg; h.inv = .75; h.hurt = .35; h.expr = 'ouch'; h.exprT = .5; shakeHit(.25);
   dmgText(h.x, h.y - 70, dmg, '#ff9a8f'); sfx('hurt');
   if (h.hp <= 0) { h.hp = 0; loseFight(); }
 }
@@ -1647,6 +1971,7 @@ function update(dt) {
   if (G.fade) { G.fade.t += dt; if (!G.fade.midDone && G.fade.t > G.fade.dur / 2) { G.fade.midDone = true; G.fade.mid(); } if (G.fade.t >= G.fade.dur) G.fade = null; }
   if (G.mode === 'ending') { G.end.t += dt; return; }
   if (G.mode !== 'city' || G.paused) return;
+  updateSky(dt); G.comicCd -= dt;
   if (G.S) G.S.playMs += dt * 1000;
   G.fx = G.fx.filter(f => { f.t += dt; f.x += f.vx * dt; f.y += f.vy * dt; if (f.kind === 'spark') f.vy += 300 * dt; return f.t < f.dur; });
   if (G.banner) { G.banner.t += dt; if (G.banner.t > G.banner.dur) G.banner = null; }
@@ -1691,17 +2016,12 @@ function renderWorld(dt) {
   const z = G.cam.zoom;
   G.cam.x = lerp(G.cam.x, tx, Math.min(1, dt * 5)); G.cam.y = lerp(G.cam.y, ty, Math.min(1, dt * 5));
   G.cam.x = clamp(G.cam.x, CW / 2 / z, WORLD.w - CW / 2 / z); G.cam.y = clamp(G.cam.y, CH / 2 / z, WORLD.h - CH / 2 / z);
-  const sx = G.shake > 0 ? rnd(-4, 4) : 0, sy = G.shake > 0 ? rnd(-4, 4) : 0;
+  // screen shake: 1-3 px on big hits, never with reduced motion or «Λιγότερα εφέ»
+  const amp = G.shake > 0 && !calm() && !Settings.lowFx ? (G.shake > .3 ? 3 : 2) : 0, sx = amp ? rnd(-amp, amp) : 0, sy = amp ? rnd(-amp, amp) : 0;
   ctx.setTransform(DPR * z, 0, 0, DPR * z, DPR * (CW / 2 - G.cam.x * z + sx), DPR * (CH / 2 - G.cam.y * z + sy));
   const v = viewRect(z), inV = (x, y, m) => x > v.x0 - m && x < v.x1 + m && y > v.y0 - m && y < v.y1 + m;
   drawGround(ctx, v, t);
-  // arena + telegraphs on the ground
   const f = G.fight;
-  if (f) {
-    ctx.save(); ctx.strokeStyle = 'rgba(255,201,74,.85)'; ctx.lineWidth = 5; ctx.setLineDash([18, 12]); ctx.lineDashOffset = -t * 30; ctx.shadowColor = '#ffc94a'; ctx.shadowBlur = 12;
-    circ(ctx, f.cx, f.cy, f.r); ctx.stroke(); ctx.restore();
-  }
-  G.tele.forEach(tl => drawTele(ctx, tl, t));
   // y-sorted scene
   const L = [];
   World.buildings.forEach(b => { if (inV(b.x + b.w / 2, b.y + b.h / 2, b.w + b.wh + 60)) L.push([b.y + b.h, 0, b]); });
@@ -1715,6 +2035,8 @@ function renderWorld(dt) {
   if (f) f.enemies.forEach(e => { if (!e.dead) L.push([e.y, 8, e]); });
   if (G.portal && dist(G.portal.x, G.portal.y, G.cam.x, G.cam.y) < 1400) L.push([G.portal.y, 9, G.portal]);
   SIGNS.forEach(s => { if (inV(s[0], s[1], 120)) L.push([s[1], 10, s]); });
+  World.lamps.forEach(l => { if (inV(l.x, l.y, 60)) L.push([l.y, 12, l]); });
+  NEON_SIGNS.forEach(s => { if (inV(s.x, s.y, 120)) L.push([s.y, 13, s]); });
   if (G.mode === 'city') L.push([h.y, 11, h]);
   L.sort((a, b) => a[0] - b[0]);
   for (const it of L) {
@@ -1732,8 +2054,18 @@ function renderWorld(dt) {
       case 9: if (o.found || dist(h.x, h.y, o.x, o.y) < 260) drawPortal(ctx, o, t); break;
       case 10: drawSign(ctx, o[0], o[1], o[2]); break;
       case 11: drawPlayer(ctx, o, t); break;
+      case 12: drawLampPost(ctx, o); break;
+      case 13: drawSignBoard(ctx, o); break;
     }
   }
+  nightPass(ctx, v, z, t);
+  // arena + telegraphs drawn after the light tint, so the danger zones stay clear by night too
+  if (f) {
+    ctx.save(); ctx.setLineDash([18, 12]); ctx.lineDashOffset = -t * 30;
+    ctx.strokeStyle = 'rgba(255,201,74,.3)'; ctx.lineWidth = 13; circ(ctx, f.cx, f.cy, f.r); ctx.stroke(); // halo instead of shadowBlur
+    ctx.strokeStyle = 'rgba(255,201,74,.9)'; ctx.lineWidth = 5; circ(ctx, f.cx, f.cy, f.r); ctx.stroke(); ctx.restore();
+  }
+  G.tele.forEach(tl => drawTele(ctx, tl, t));
   if (G.portal && !G.portal.found && dist(h.x, h.y, G.portal.x, G.portal.y) < 1100) drawPortalBeam(ctx, G.portal, t);
   G.proj.forEach(p => { if (inV(p.x, p.y, 40)) drawProj(ctx, p, t); });
   G.fx.forEach(e => drawFx(ctx, e, z));
@@ -1755,7 +2087,7 @@ function drawTele(c, tl, t) {
   if (tl.kind === 'beam') {
     c.translate(tl.x, tl.y); c.rotate(tl.a);
     if (!tl.fired) { c.fillStyle = `rgba(255,240,150,${.15 + Math.sin(t * 40) * .1 + p * .2})`; c.fillRect(0, -tl.w / 2, tl.len, tl.w); }
-    else { c.shadowColor = '#ffe75a'; c.shadowBlur = 24; c.fillStyle = 'rgba(255,250,200,.95)'; c.fillRect(0, -tl.w / 2, tl.len, tl.w); c.fillStyle = '#ffffff'; c.fillRect(0, -tl.w / 6, tl.len, tl.w / 3); }
+    else { c.fillStyle = 'rgba(255,231,90,.3)'; c.fillRect(0, -tl.w * .9, tl.len, tl.w * 1.8); c.fillStyle = 'rgba(255,250,200,.95)'; c.fillRect(0, -tl.w / 2, tl.len, tl.w); c.fillStyle = '#ffffff'; c.fillRect(0, -tl.w / 6, tl.len, tl.w / 3); }
   }
   c.restore();
 }
@@ -1770,6 +2102,14 @@ function drawFx(c, e, z) {
     case 'puff': c.globalAlpha = (1 - p) * .5; c.fillStyle = '#ffffff'; circ(c, e.x, e.y, 6 + p * 14); c.fill(); break;
     case 'heart': c.globalAlpha = 1 - p; c.fillStyle = '#ff6fb1'; heart(c, e.x, e.y, 6); c.fill(); break;
     case 'snow': c.globalAlpha = 1 - p; c.fillStyle = '#e8fbff'; star(c, e.x, e.y, 4, 1.4, 6); c.fill(); break;
+    case 'comic': { // big outlined word, 34 px on screen; a short pop unless reduced motion
+      const pop = calm() ? 1 : 1 + .35 * Math.max(0, 1 - p * 5), size = 34 / z * pop;
+      c.globalAlpha = 1 - Math.max(0, p - .7) / .3; c.translate(e.x, e.y); if (!calm()) c.rotate(e.rot);
+      c.font = `700 ${size}px Comfortaa, 'Trebuchet MS', sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
+      c.lineWidth = 8 / z; c.strokeStyle = '#1b1430'; c.strokeText(e.text, 0, 0);
+      c.lineWidth = 3 / z; c.strokeStyle = '#ffffff'; c.strokeText(e.text, 0, 0);
+      c.fillStyle = e.col; c.fillText(e.text, 0, 0); break;
+    }
     case 'arrowfall': c.globalAlpha = 1 - p * .5; c.strokeStyle = '#7b4a2a'; c.lineWidth = 2; c.beginPath(); c.moveTo(e.x, e.y - 80 * (1 - p) - 14); c.lineTo(e.x, e.y - 80 * (1 - p)); c.stroke(); break;
   }
   c.restore();
@@ -1822,6 +2162,7 @@ function renderHUD() {
   ctx.lineWidth = 5; ctx.strokeStyle = h.hp / h.max < .3 ? '#ff6b5e' : '#ffc94a'; circ(ctx, pcx, pcy, pr + 2); ctx.stroke();
   // name, hp, food, super
   const bx = pcx + pr + 14, bw = Math.min(220, CW * .26);
+  ctx.font = '700 19px Comfortaa, sans-serif'; pill(bx - 8, top + 2, ctx.measureText(S.name).width + 16, 26, 'rgba(27,20,48,.6)'); // plate: AA by day and night
   hudText(S.name, bx, top + 20, 19);
   pill(bx, top + 30, bw, 16, 'rgba(27,20,48,.8)'); ctx.fillStyle = h.hp / h.max < .3 ? '#ff6b5e' : '#6fe3c1'; rr(ctx, bx + 2, top + 32, (bw - 4) * h.hp / h.max, 12, 6); ctx.fill();
   hudText(Math.ceil(h.hp) + '/' + h.max, bx + bw / 2, top + 43, 11, '#1b1430', 'center');
@@ -1844,7 +2185,11 @@ function renderHUD() {
   let ty = (f ? (CW > 720 ? top + 92 : top + 150) : (CW > 720 ? top + 56 : top + 112));
   G.toasts.forEach(tt => { const a = Math.min(1, tt.t * 4, (tt.dur - tt.t) * 2); ctx.globalAlpha = a; ctx.font = '700 16px Comfortaa, sans-serif'; const w = Math.min(CW - 32, ctx.measureText(tt.text).width + 30); pill(CW / 2 - w / 2, ty, w, 30, 'rgba(27,20,48,.88)'); hudText(tt.text, CW / 2, ty + 20, 16, tt.col, 'center'); ctx.globalAlpha = 1; ty += 36; });
   // banner
-  if (G.banner) { const b = G.banner, a = Math.min(1, b.t * 3, (b.dur - b.t) * 3); ctx.globalAlpha = a; hudText(b.text, CW / 2, CH * .3, Math.min(34, CW / 22), '#ffc94a', 'center'); ctx.globalAlpha = 1; }
+  if (G.banner) {
+    const b = G.banner, a = Math.min(1, b.t * 3, (b.dur - b.t) * 3), bs = Math.min(34, CW / 22); ctx.globalAlpha = a;
+    ctx.font = `700 ${bs}px Comfortaa, sans-serif`; const bw2 = Math.min(CW - 16, ctx.measureText(b.text).width + 40); pill(CW / 2 - bw2 / 2, CH * .3 - bs * 1.05, bw2, bs * 1.5, 'rgba(27,20,48,.6)');
+    hudText(b.text, CW / 2, CH * .3, bs, '#ffc94a', 'center'); ctx.globalAlpha = 1;
+  }
   // prompt
   if (G.prompt && !G.cine) { const txt = (touchUI ? '👆 ' : 'E · ') + G.prompt.text; ctx.font = '700 19px Comfortaa, sans-serif'; const w = ctx.measureText(txt).width + 36, yy = CH - (touchUI ? 200 : 118) - insetB(); pill(CW / 2 - w / 2, yy, w, 40, 'rgba(255,201,74,.95)'); ctx.fillStyle = '#1b1430'; ctx.textAlign = 'center'; ctx.fillText(txt, CW / 2, yy + 26); }
   if (!touchUI) abilityBar();
@@ -1859,6 +2204,7 @@ function abilityBar() {
     if (s[2] > 0) { ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.moveTo(x + sz / 2, y0 + sz / 2); ctx.arc(x + sz / 2, y0 + sz / 2, sz * .7, -Math.PI / 2, -Math.PI / 2 + TAU * s[2]); ctx.closePath(); ctx.save(); rr(ctx, x, y0, sz, sz, 16); ctx.clip(); ctx.beginPath(); ctx.moveTo(x + sz / 2, y0 + sz / 2); ctx.arc(x + sz / 2, y0 + sz / 2, sz * .75, -Math.PI / 2, -Math.PI / 2 + TAU * s[2]); ctx.closePath(); ctx.fill(); ctx.restore(); }
     else if (i === 4) { ctx.strokeStyle = '#ffc94a'; ctx.lineWidth = 3; rr(ctx, x, y0, sz, sz, 16); ctx.stroke(); }
     ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff4dc'; ctx.fillText(s[0], x + sz / 2, y0 + 38);
+    ctx.font = '500 11px Comfortaa, sans-serif'; const lw = Math.min(sz + gap - 2, ctx.measureText(s[3]).width + 10); pill(x + sz / 2 - lw / 2, y0 + sz + 3, lw, 17, 'rgba(27,20,48,.72)');
     hudText(s[1], x + sz - 8, y0 + 16, 11, '#ffc94a', 'right'); hudText(s[3], x + sz / 2, y0 + sz + 15, 11, '#c9bde6', 'center', 500);
   });
 }
@@ -1911,7 +2257,7 @@ function render(dt) {
   else {
     renderWorld(dt);
     if (G.mode === 'city') { renderHUD(); renderCine(); if (G.dead) { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = `rgba(120,30,60,${Math.min(.5, G.dead * .4)})`; ctx.fillRect(0, 0, CW, CH); } }
-    else { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = 'rgba(27,20,48,.35)'; ctx.fillRect(0, 0, CW, CH); }
+    else { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.fillStyle = themeNow() === 'light' ? 'rgba(251,241,255,.4)' : 'rgba(27,20,48,.35)'; ctx.fillRect(0, 0, CW, CH); }
   }
   if (G.fade) { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); const p = G.fade.t / G.fade.dur; ctx.fillStyle = `rgba(27,20,48,${1 - Math.abs(p * 2 - 1)})`; ctx.fillRect(0, 0, CW, CH); }
 }
@@ -1953,10 +2299,10 @@ function showScreen(name, data) {
   const card = el('div', { class: 'card' }); s.appendChild(card);
   if (name === 'title') {
     setMode('title'); music('title');
-    card.style.background = 'transparent'; card.style.boxShadow = 'none';
+    card.classList.add('plate'); // translucent plate: the text stays readable over the city by day and by night
     card.append(el('h1', { class: 'title', text: 'Κρυφές Μάχες' }),
       el('p', { class: 'sub', text: 'Ντύσε τον ήρωά σου, βγες στην πόλη της λίμνης και βρες τα πέντε τέρατα που κρύβονται στα στενά της. Μετά, ψάξε τη μαγική πύλη για να γυρίσεις σπίτι.' }),
-      el('div', { class: 'row' }, [btn('▶ Παίξε', () => { openSlots(); })]),
+      el('div', { class: 'row' }, [btn('▶ Παίξε', () => { openSlots(); })]), settingsRow(),
       el('p', { class: 'toastline', text: 'Βελάκια ή WASD: κίνηση · 1 2: ικανότητες · 3: ασπίδα · 4: φαγητό · Space: σούπερ · E: μπες · P: παύση' }));
   }
   if (name === 'slots') {
@@ -2005,7 +2351,7 @@ function showScreen(name, data) {
     const row = el('div', { class: 'row' }, [btn('▶ Συνέχεια', () => togglePause(false)), btn('💾 Αποθήκευση', () => { const ok = saveGame(false); card.querySelector('.toastline').textContent = ok ? 'Αποθηκεύτηκε ✓' : 'Η συσκευή δεν κρατά αποθήκευση'; }, 'ghost')]);
     if (G.mode === 'city' && !G.fight) row.appendChild(btn('🏡 Πήγαινε σπίτι', () => { togglePause(false); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); }, 'ghost'));
     row.appendChild(btn('Αρχική οθόνη', () => { saveGame(false); G.paused = false; showScreen('title'); }, 'ghost'));
-    card.append(row, el('p', { class: 'toastline', text: '' }));
+    card.append(row, settingsRow(), el('p', { class: 'toastline', text: '' }));
   }
   if (name === 'lost') {
     card.append(el('h2', { text: 'Ωχ! Κουράστηκες...' }), el('p', { text: (data.who ? 'Αυτή τη φορά κέρδισε ' + data.who + '. ' : '') + 'Γυρνάς σπίτι να ξεκουραστείς. Δεν χάθηκε τίποτα από όσα έχεις ξεκλειδώσει. Το τέρας κρύφτηκε ξανά στο ίδιο σημείο.' }),
@@ -2315,11 +2661,20 @@ function musicTick() {
 
 /* ---------- main loop ---------- */
 let last = performance.now();
+/* Frame time while playing: average for the tests, and «Λιγότερα εφέ» switches on by itself ONCE if frames stay slow. */
+const Perf = { sum: 0, n: 0, slow: 0 };
+function watchFrames(ms) {
+  if (G.mode !== 'city' || G.paused || document.hidden) { Perf.slow = 0; return; }
+  Perf.sum += ms; Perf.n++;
+  if (Settings.lowFx || Settings.autoLowFx) return;
+  Perf.slow = ms > CONFIG.slowFrameMs ? Perf.slow + ms / 1000 : 0;
+  if (Perf.slow > CONFIG.slowFrameSec) { setLowFx(true, true); toast('Λιγότερα εφέ: άναψαν μόνα τους, για να τρέχει πιο γρήγορα', '#6fe3c1'); }
+}
 function frame(now) {
-  const dt = Math.min(.05, (now - last) / 1000); last = now;
-  readMove();
+  const raw = now - last, dt = Math.min(.05, raw / 1000); last = now;
+  readMove(); watchFrames(raw);
   try {
-    if (G.mode === 'title') { G.time += dt; updateLife(dt); }
+    if (G.mode === 'title') { G.time += dt; updateLife(dt); updateSky(dt); }
     else update(dt);
     render(dt);
     if (G.mode === 'house') { G.time += dt; drawMirror(); }
@@ -2327,6 +2682,12 @@ function frame(now) {
   } catch (err) { console.error(err); }
   requestAnimationFrame(frame);
 }
+/* Read-only state for the Playwright tests; exists only when the test hook is set. */
+if (TEST) window.__kmDebug = () => ({
+  hour: Sky.hour, dark: Sky.dark, neon: Sky.neon, theme: themeNow(), lowFx: Settings.lowFx, fx: G.fx.length,
+  frameMs: Perf.n ? Perf.sum / Perf.n : 0, frames: Perf.n, lamps: World.lamps.length,
+  places: NEON_PLACES.map(p => ({ name: p.name, cue: p.cue, level: placeLevel(p) })),
+});
 function boot() {
   buildWorld(); heroInit(); spawnLife(); resize();
   showScreen('title');
