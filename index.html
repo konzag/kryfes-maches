@@ -1148,9 +1148,17 @@ const BOSSES = [
     intro: 'Η ΗλιοΛίμνη σηκώνεται μέσα από τη λίμνη!', pats: ['rain', 'aimed', 'rain', 'spread', 'ring'] },
   { id: 'bag', kind: 'bag', name: 'Το ΣακουλοΦως', acc: 'το ΣακουλοΦως', x: 1340, y: 1990, ax: 1340, ay: 1985, ar: 210, size: 115, proj: 'bag', mobile: true,
     intro: 'Το ΣακουλοΦως φούσκωσε στο πάρκινγκ του σούπερ μάρκετ!', pats: ['beam', 'aimed', 'spread', 'beam', 'ring'] },
-  { id: 'pie', kind: 'pie', name: 'Ο Πιτόσαυρος', acc: 'τον Πιτόσαυρο', x: 1470, y: 1320, ax: 1470, ay: 1320, ar: 190, size: 125, proj: 'pie', mobile: true,
-    intro: 'Έκπληξη! Η πίτα στα Λιθαρίτσια ήταν ο Πιτόσαυρος!', pats: ['charge', 'spread', 'aimed', 'ring', 'summon'] },
+  { id: 'pie', kind: 'pie', secret: true, x: 1470, y: 1320, ax: 1470, ay: 1320, ar: 190, size: 125, proj: 'pie', mobile: true,
+    pats: ['charge', 'spread', 'aimed', 'ring', 'summon'] },
 ];
+/* Boss 5 is a surprise for the kids and the repo is public: its name is not in the page source (KM-SECRET-01).
+   Two halves of its code points; secretWords() decodes them only when that fight starts (startFight). */
+const SECRET_A = [928, 953, 964, 972, 963], SECRET_B = [945, 965, 961, 959];
+function secretWords(m) {
+  if (!m.secret || m.name) return;
+  const w = String.fromCodePoint(...SECRET_A, ...SECRET_B);
+  m.name = 'Ο ' + w + 'ς'; m.acc = 'τον ' + w; m.intro = 'Έκπληξη! Η πίτα στα Λιθαρίτσια ήταν ο ' + w + 'ς!';
+}
 const MINI_SPOTS = [[600, 1180], [330, 1420], [1180, 800], [1480, 770], [1860, 560], [1840, 1060], [700, 1595], [1250, 1595], [1880, 1820],
   [1180, 2080], [350, 1780], [780, 2080], [2560, 690], [1480, 1060], [600, 760]];
 const FOOD_SPOTS = [[1100, 1235, 'pita'], [985, 830, 'koulouri'], [1560, 1440, 'apple'], [2045, 700, 'bougatsa'], [640, 1850, 'apple'],
@@ -1714,6 +1722,7 @@ function sparkBurst(x, y, n, cols, sp) { if (Settings.lowFx) n = Math.ceil(n * .
 function dmgText(x, y, v, col) { fx('text', x + rnd(-8, 8), y, { text: String(Math.round(v)), col: col || '#fff4dc', vy: -60, dur: .8 }); }
 
 function startFight(m) {
+  secretWords(m);
   const S = G.S, w = weaponOf(S.look), k = S.bosses.length;
   m.hidden = false; m.state = 'fight';
   const f = { m, type: m.group ? 'mini' : 'boss', cx: m.ax, cy: m.ay, r: m.ar, enemies: [], t: 0, name: m.name };
