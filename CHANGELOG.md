@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Changed
+- README pass 02 (GAME-STANDARD v1.2 §2a): the README is also the owner's manual-test guide. New sections
+  «Οθόνες και ροή» (title, «Ποιος παίζει;», hero, story, the mirror / dress-up screen, city, battle, defeat, pause,
+  ending, rotate hint, unlocks), a rewritten «Αποθήκευση» (it still described device-only saves: since WP-K2 the
+  family PIN, hub profile, 3 slots per profile, «Μόνο σε αυτή τη συσκευή» and the silent device fallback),
+  «Λίστα χειροκίνητων δοκιμών» KM-01..KM-39 (sizes from `tests/dressup.spec.ts`, TEST profile only),
+  «Τι άλλαξε», «Γνωστοί περιορισμοί», «Ασφαλής δοκιμή», «Αναφορά προβλήματος». The story no longer reveals the
+  secret monster. Issue forms `bug.yml` / `update.yml`, PR template checkbox, `tests/readme.spec.ts` (sections,
+  KM ids, issue forms, no hostnames). `GAME-STANDARD.md` synced to v1.2. No game code change; save key and
+  save format unchanged.
+
+## [2026-10-19] FIX-2 (PR #6, release PR #7)
+
 ### Fixed
 - Dress-up / mirror screen on phones (FIX-2).
   - Category tabs and sub-category chips are single scrollable rows with scroll-snap, an edge fade and ‹ › buttons
@@ -14,6 +27,8 @@
   - Save keys and save format are unchanged.
   - New `tests/dressup.spec.ts` runs at 780×360, 360×780, 820×1180, 1180×820 and 1280, light + dark, with axe
     (WCAG 2 AA).
+
+## [2026-10-15] v1 + server saves (WP-K1 PR #1, WP-K2 PR #2, release PR #3; README PR #4, release PR #5)
 
 ### Added
 - Server saves (GAME-STANDARD §5 level B, WP-K2): `CONFIG.serverSave = true`. Family PIN → hub profile → 3 slots via
