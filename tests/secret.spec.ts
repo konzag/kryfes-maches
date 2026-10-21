@@ -1,12 +1,15 @@
 // KM-SECRET-01: boss 5 is a surprise for the kids and the repo is public. No file and no page text before that fight
 // may carry its name (tests/secret-scan.mjs, which holds only a SHA-256 of a folded form). The game decodes the
 // name from code points when the fight starts; the texts it then shows are compared by SHA-256, never by literal.
+// KM-SECRET-02: the same for the whole intro line; no two consecutive words of it may appear before the fight.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
-import { hasSecret, scanTree } from './secret-scan.mjs';
+import {
+  INTRO_FOLD_SHA256, INTRO_PAIR_SHA256, fold, hasIntroFragment, hasSecret, scanTree, scanTreeIntro, wordPairHashes,
+} from './secret-scan.mjs';
 
 declare const G: any;
 declare const BOSSES: any[];
@@ -34,6 +37,26 @@ function encodedWord() {
   return String.fromCodePoint(...codes);
 }
 
+// SHA-256 of JSON.stringify(SECRET_C.concat(SECRET_D)): the encoded words of the intro (KM-SECRET-02).
+const INTRO_CODES_SHA = '1d285b701f32023b16df5fb27d74a36a1830edd403bf9d3af388ce3d85a6c8b4';
+
+/** The encoded intro words (everything before the name), read from index.html. */
+function encodedIntroHead() {
+  const src = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const m = src.match(/const SECRET_C = \[([\d, ]+)\],\s*SECRET_D = \[([\d, ]+)\];/);
+  expect(m, 'SECRET_C / SECRET_D in index.html').toBeTruthy();
+  const codes = (m![1] + ', ' + m![2]).split(',').map((x) => Number(x.trim()));
+  expect(sha(JSON.stringify(codes))).toBe(INTRO_CODES_SHA);
+  return String.fromCodePoint(...codes);
+}
+
+/** The whole intro line as the game builds it in secretWords(). */
+function encodedIntro() {
+  const intro = encodedIntroHead() + encodedWord() + 'ς!';
+  expect(sha(intro)).toBe(INTRO_SHA);
+  return intro;
+}
+
 function problemsOf(page: Page) {
   const problems: string[] = [];
   page.on('console', (m) => {
@@ -48,6 +71,37 @@ function problemsOf(page: Page) {
 test('no file of the repo carries the secret name in any spelling', async ({}, info) => {
   test.skip(info.project.name !== 'desktop');
   expect(scanTree(root)).toEqual([]);
+});
+
+test('no file of the repo carries a fragment of the secret intro line in any spelling', async ({}, info) => {
+  test.skip(info.project.name !== 'desktop');
+  expect(scanTreeIntro(root)).toEqual([]);
+});
+
+test('the intro scan catches every two-word fragment in every covered spelling and nothing else', async ({}, info) => {
+  test.skip(info.project.name !== 'desktop');
+  const intro = encodedIntro();
+  expect(sha(fold(intro))).toBe(INTRO_FOLD_SHA256);
+  expect(new Set(wordPairHashes(intro))).toEqual(INTRO_PAIR_SHA256);
+  const words = intro.split(/\s+/);
+  const esc = (s: string, f: (n: number) => string) => [...s].map((c) => f(c.codePointAt(0)!)).join('');
+  for (let i = 0; i + 1 < words.length; i++) {
+    const p = words[i] + ' ' + words[i + 1];
+    const bare = p.normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC');
+    const spellings = [
+      p, p.toUpperCase(), p.toLowerCase(), bare, bare.toUpperCase(), p.normalize('NFD'), fold(p), fold(p).toUpperCase(),
+      `x ${p} y`, words[i] + '\n' + words[i + 1], esc(p, (n) => '\\u' + n.toString(16).padStart(4, '0')),
+      esc(p, (n) => `\\u{${n.toString(16)}}`), esc(p, (n) => `&#${n};`), esc(p, (n) => `&#x${n.toString(16)};`),
+      encodeURIComponent(p), `alt="${p}"`, `"aria-label": "${bare}"`,
+    ];
+    spellings.forEach((s, j) => expect(hasIntroFragment(s), `pair #${i} spelling #${j}`).toBe(true));
+  }
+  // Single words alone (e.g. a city sign or a food) are not fragments; nor are the other bosses' lines.
+  for (const w of words) expect(hasIntroFragment(w), `word of length ${w.length}`).toBe(false);
+  const src = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const others = [...src.matchAll(/intro: '([^']+)'/g)].map((x) => x[1]);
+  expect(others.length).toBe(4);
+  for (const o of others) expect(hasIntroFragment(o), o).toBe(false);
 });
 
 test('the scan catches every covered spelling and nothing else', async ({}, info) => {
@@ -65,7 +119,7 @@ test('the scan catches every covered spelling and nothing else', async ({}, info
     w.normalize('NFD'), `alt="${w}"`, `"aria-label": "${bare}"`,
   ];
   spellings.forEach((s, i) => expect(hasSecret(s), `spelling #${i}`).toBe(true));
-  for (const other of ['Ο Βραχυντής', 'Η ΗλιοΛίμνη', 'Το ΣακουλοΦως', '***', 'pitta', 'SECRET_A']) {
+  for (const other of ['Ο Βραχυντής', 'Η ΗλιοΛίμνη', 'Το ΣακουλοΦως', 'Κρυφή μάχη! Σκιουλάκια!', 'pitta', 'SECRET_A']) {
     expect(hasSecret(other), other).toBe(false);
   }
 });
@@ -89,8 +143,12 @@ test('the served page and the city before boss 5 show no secret name; the fight 
   // Before the fight: no response, DOM or in-memory monster carries the words.
   expect(bodies.length).toBeGreaterThan(0);
   bodies.forEach((b) => expect(hasSecret(b), b.split('\n')[0]).toBe(false));
-  expect(hasSecret(await page.content())).toBe(false);
-  expect(hasSecret(await page.evaluate(() => document.body.innerText))).toBe(false);
+  bodies.forEach((b) => expect(hasIntroFragment(b), `intro in ${b.split('\n')[0]}`).toBe(false));
+  const html = await page.content(), text = await page.evaluate(() => document.body.innerText);
+  expect(hasSecret(html)).toBe(false);
+  expect(hasSecret(text)).toBe(false);
+  expect(hasIntroFragment(html)).toBe(false);
+  expect(hasIntroFragment(text)).toBe(false);
   const before = await page.evaluate(() => {
     const m = G.monsters.find((x: any) => x.secret);
     const b = BOSSES.find((x: any) => x.secret);
