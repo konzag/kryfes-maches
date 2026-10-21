@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Security
+- KM-SECRET-02: the whole intro line of boss 5's fight (every word of it, not only the name) is no longer
+  in the page source: `index.html` keeps it as two more code-point constants (`SECRET_C`, `SECRET_D`) that
+  `secretWords()` decodes with the name when that fight starts; the banner text is unchanged (same SHA-256).
+  `tests/secret-scan.mjs` also fails on any two consecutive words of that line in any covered spelling (it holds
+  only SHA-256 of the folded word pairs and of the folded line); `tests/secret.spec.ts` checks the repo, the served
+  responses and the DOM before the fight for fragments. README KM-50. Save keys and format unchanged.
 - KM-SECRET-01: boss 5's name is no longer in the page source (the repo is public and the kids must not read it
   before the fight). `index.html` keeps it only as two code-point constants (`SECRET_A`, `SECRET_B`) that
   `secretWords()` decodes when that fight starts; the texts shown in the fight are unchanged. New
