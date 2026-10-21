@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Changed
-- G1-GFX-2026-10-22: a clearly better look with the same gameplay, controls, difficulty, texts, save keys and save
+- G1-GFX-2026-10-22 (PR #18): a clearly better look with the same gameplay, controls, difficulty, texts, save keys and save
   format.
   - **Ink and shadows:** clean ink outlines (buildings, roofs, trees, boats, cars, docks, hero and NPC bodies) and
     contact shadows.
