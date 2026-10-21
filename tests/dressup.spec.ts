@@ -214,3 +214,44 @@ test('keyboard focus stays in view with other font metrics', async ({ page }, in
     }
   }
 });
+
+// KM-34: a portrait window (820x1180, no touch) stacks the house: mirror on top, wardrobe below, all inside the window.
+// The landscape sizes keep the mirror on the left (KM-33, 1280, and the short-screen block of KM-35).
+const LAYOUTS = [
+  { name: '820x1180', viewport: { width: 820, height: 1180 }, stacked: true },
+  { name: '360x780', viewport: { width: 360, height: 780 }, stacked: true },
+  { name: '1280x800', viewport: { width: 1280, height: 800 }, stacked: false },
+  { name: '1180x820', viewport: { width: 1180, height: 820 }, stacked: false },
+  { name: '780x360', viewport: { width: 780, height: 360 }, stacked: false },
+];
+for (const scheme of ['light', 'dark'] as const) {
+  for (const l of LAYOUTS) {
+    test(`KM-34 house at ${l.name}, ${scheme}: ${l.stacked ? 'mirror on top, options below' : 'mirror left'}`, async ({ page }, info) => {
+      test.skip(info.project.name !== 'desktop', 'one project is enough: it sets its own sizes');
+      const problems = await watch(page);
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize(l.viewport);
+      await toHouse(page);
+      const vp = { x: 0, y: 0, ...l.viewport };
+      const mirror = await box(page.locator('.mirrorBox'));
+      const ward = await box(page.locator('.ward'));
+      if (l.stacked) {
+        expect(mirror.y + mirror.height, 'mirror above the wardrobe').toBeLessThanOrEqual(ward.y + 1);
+        for (const id of ['#wTabs', '#wRandom', '#wSave', '#wOut', '#wGrid .opt >> nth=0']) {
+          expect(inside(await box(page.locator(id)), vp), `${id} inside the window`).toBe(true);
+        }
+        expect(await cardsFullyInView(page), 'first row of cards visible').toBeGreaterThanOrEqual(3);
+      } else {
+        expect(mirror.x + mirror.width, 'mirror left of the wardrobe').toBeLessThanOrEqual(ward.x + 1);
+      }
+      const scroll = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, house: document.getElementById('house')!.scrollWidth }));
+      expect(scroll.doc, 'no horizontal page scroll').toBeLessThanOrEqual(l.viewport.width);
+      expect(scroll.house).toBeLessThanOrEqual(l.viewport.width);
+      if (l.stacked) {
+        const axe = await new AxeBuilder({ page }).include('#house').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+        expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+      }
+      expect(problems).toEqual([]);
+    });
+  }
+}
