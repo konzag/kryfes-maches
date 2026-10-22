@@ -53,6 +53,9 @@ export type Hub = {
   putStatus: number;
   /** Status of POST /api/unlock regardless of the PIN (0 = check the PIN). */
   unlockStatus: number;
+  /** Status of every /api/save request, GET and PUT (0 = answer normally). 401 = the hub forgot the unlock for the
+   * saves while /api/profiles still answers. */
+  saveStatus: number;
   profiles: { id: number; name: string }[];
   saves: Map<string, HubSave>;
   /** Every /api request: method, path, body text. */
@@ -62,7 +65,7 @@ export type Hub = {
 /** In-memory fake of the hub save API (games-hub app/api/saves.py), for this slug only; same as smoke.spec.ts
  * `fakeHub`, with knobs for the status codes. No network: page.route answers every /api request. */
 export async function fakeHub(page: Page, init: Partial<Hub> = {}): Promise<Hub> {
-  const hub: Hub = { unlocked: false, putStatus: 204, unlockStatus: 0, profiles: [], saves: new Map(), log: [], ...init };
+  const hub: Hub = { unlocked: false, putStatus: 204, unlockStatus: 0, saveStatus: 0, profiles: [], saves: new Map(), log: [], ...init };
   await page.route('**/api/**', async (route) => {
     const req: Request = route.request();
     const p = new URL(req.url()).pathname;
@@ -83,6 +86,7 @@ export async function fakeHub(page: Page, init: Partial<Hub> = {}): Promise<Hub>
     }
     const m = p.match(/^\/api\/save\/kryfes-maches\/(\d+)\/([1-3])$/);
     if (!m) return json(404, { error: { code: 'NOT_FOUND' } });
+    if (hub.saveStatus) return json(hub.saveStatus, { error: { code: 'UNAUTHORIZED' } });
     if (req.method() === 'PUT') {
       expect(req.postData()!.length).toBeLessThan(64 * 1024);
       if (hub.putStatus !== 204) return json(hub.putStatus, { error: { code: 'SAVES_DISABLED' } });

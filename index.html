@@ -48,7 +48,8 @@ button:disabled{opacity:.45;cursor:default}
 #shell{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));display:flex;gap:8px;z-index:30}
 #shell button{width:52px;height:52px;padding:0;font-size:24px;border-radius:50%;background:var(--shell-bg);color:var(--shell-fg);box-shadow:0 3px 0 rgba(0,0,0,.35)}
 /* screens */
-#screen{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+/* safe center: a card taller than the window starts at the top and scrolls, instead of being cut off above it. */
+#screen{position:fixed;inset:0;z-index:20;display:flex;align-items:safe center;justify-content:center;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-block:calc(70px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-bottom,0px));box-sizing:border-box;overflow:auto}
 #screen.dim{background:var(--dim)}
@@ -196,6 +197,11 @@ input#heroName:focus{outline:none;border-color:var(--gold)}
 #pads button:disabled{opacity:.35}
 #rotate{position:fixed;inset:0;z-index:50;background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;font-size:22px;padding:24px}
 #rotate .ph{font-size:72px;animation:rot 1.6s ease-in-out infinite}
+/* On the menus (title, slots, create, pause...) the hint is only a strip at the bottom that taps pass through, so the
+   menus stay readable and can be tapped in portrait too (GAME-STANDARD §3a). The full cover is for play only. */
+#rotate.strip{inset:auto 0 0 0;flex-direction:row;gap:10px;pointer-events:none;font-size:18px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--panel);border-top:3px solid var(--panel2)}
+#rotate.strip .ph{font-size:28px}
+body.rotstrip #screen{padding-bottom:72px}
 @keyframes rot{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
 @media (prefers-reduced-motion:reduce){#rotate .ph{animation:none}button{transition:none}}
 .toastline{font-size:15px;color:var(--muted);text-align:center;margin-top:12px}
@@ -539,12 +545,15 @@ const Server = {
     if (JSON.stringify(body).length > CONFIG.saveMaxBytes) return; // stays on the device
     const res = await this.request('PUT', this.url(owner, i), body);
     if (res && res.status === 204) { const d = Store.read(); if (d.dirty) delete d.dirty[owner + ':' + i]; Store.write(d); }
+    // 401: the hub forgot the unlock. The slot stays dirty and the slot screen asks for the family PIN again.
+    if (res && res.status === 401) this.state = 'locked';
   },
   async pull(owner, i) {
     if (!this.on || owner === 'local' || this.state !== 'ok') return;
     const d0 = Store.read();
     if (d0.dirty && d0.dirty[owner + ':' + i]) return this.push(owner, i); // the device has the newest copy
     const res = await this.request('GET', this.url(owner, i));
+    if (res && res.status === 401) { this.state = 'locked'; return; }
     if (!res || res.status !== 200) return;
     const r = await res.json().catch(() => null);
     const d = Store.read(), arr = Store.slots(d, owner), local = arr[i];
@@ -554,7 +563,10 @@ const Server = {
   },
   async syncPending() {
     if (!this.on || this.state !== 'ok') return;
-    for (const key of Object.keys(Store.read().dirty || {})) { const k = key.lastIndexOf(':'); await this.push(key.slice(0, k), +key.slice(k + 1)); }
+    for (const key of Object.keys(Store.read().dirty || {})) {
+      if (this.state !== 'ok') return; // a 401 locked the home save: the rest waits for the PIN
+      const k = key.lastIndexOf(':'); await this.push(key.slice(0, k), +key.slice(k + 1));
+    }
   },
 };
 Server.profile = Store.read().profile || null;
@@ -2694,7 +2706,7 @@ function setMode(m) {
   if (m !== 'title') { /* keep screens controlled by showScreen */ }
 }
 let curScreen = null;
-function hideScreen() { curScreen = null; const s = $('screen'); s.hidden = true; s.className = ''; s.textContent = ''; }
+function hideScreen() { curScreen = null; const s = $('screen'); s.hidden = true; s.className = ''; s.textContent = ''; checkRotate(true); }
 /* Slots: render at once with what the device knows, then ask the hub (PIN, profiles, newer saves) and re-render. */
 async function openSlots() {
   showScreen('slots');
@@ -2716,8 +2728,8 @@ function logo() {
   return h;
 }
 function showScreen(name, data) {
-  curScreen = name;
-  const s = $('screen'); s.textContent = ''; s.hidden = false; s.className = name === 'title' ? '' : 'dim';
+  curScreen = name; checkRotate();
+  const s = $('screen'); s.textContent = ''; s.hidden = false; s.className = name === 'title' ? '' : 'dim'; s.scrollTop = 0; // every menu opens at its top
   const card = el('div', { class: 'card' }); s.appendChild(card);
   if (name === 'title') {
     setMode('title'); music('title');
@@ -3012,7 +3024,12 @@ $('bFull').addEventListener('click', toggleFull);
 $('bHome').addEventListener('click', () => { saveGame(false); if (location.pathname.indexOf(CONFIG.hubPath) === 0) location.href = '/'; else { G.paused = false; G.fight = null; showScreen('title'); } });
 document.addEventListener('visibilitychange', () => { if (document.hidden && G.mode === 'city' && !G.paused) togglePause(true); });
 window.addEventListener('blur', () => { if (G.mode === 'city' && !G.paused) togglePause(true); });
-function checkRotate() { const show = touchUI && innerHeight > innerWidth; $('rotate').hidden = !show; if (show && G.mode === 'city' && !G.paused) togglePause(true); }
+// noPause: from hideScreen, whose caller may be about to change the mode (pause -> «Πήγαινε σπίτι»): only the look changes.
+function checkRotate(noPause) {
+  const show = touchUI && innerHeight > innerWidth, strip = show && curScreen !== null; // a menu is open: strip only
+  $('rotate').hidden = !show; $('rotate').classList.toggle('strip', strip); document.body.classList.toggle('rotstrip', strip);
+  if (show && !strip && !noPause && G.mode === 'city' && !G.paused) togglePause(true); // pausing opens the pause menu (then: strip)
+}
 window.addEventListener('resize', resize);
 
 /* ---------- sound (Web Audio, all generated) ---------- */
