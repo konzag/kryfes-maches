@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Fixed
+- KM-14 (PR #22): the ● marks on the wardrobe chips and the «ΝΕΟ» cards go away again after the next trip to the city.
+  The G1-GFX change (#18) put its portrait-cache reset in front of `goCity()`'s first line, so the trailing comment
+  swallowed `S.seenUnlock = battlesWon(S); saveGame(false);`. Restored on its own line; graphics, save keys and save
+  format unchanged. New test `tests/flow.spec.ts` «new marks in the wardrobe go away after the next trip to the city
+  (KM-14)» (red on 6b5f923, green now).
+- KRYFES-MACHES-T1/T2 (PR #22): a save `Store.read()` cannot use (unparsable JSON, or `v` other than `SCHEMA`, e.g. a
+  newer build's `v: 2`) is copied once to `game.kryfes-maches.v1.bak` (`.bak.<time>` if that key holds another one)
+  before the next `Store.write()` replaces it. If that copy cannot be written, `write()` keeps to memory and leaves the
+  save alone. Key `game.kryfes-maches.v1`, `SCHEMA` 1 and the v1 format unchanged. The two `test.fail` markers in
+  `tests/save.spec.ts` are gone (both tests pass); new test for the failed-backup case. Test-count floor 245 -> 247.
+
 ### Changed
 - G1-GFX-2026-10-22 (PR #18): a clearly better look with the same gameplay, controls, difficulty, texts, save keys and save
   format.
