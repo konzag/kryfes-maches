@@ -44,7 +44,6 @@ const survives = (page: Page, raw: string) =>
   }, [SAVE_KEY, raw]);
 
 test('a corrupt save is not overwritten silently', async ({ page }) => {
-  test.fail(true, 'APP BUG KRYFES-MACHES-T1: corrupt save silently overwritten');
   const problems = await watch(page);
   const raw = '{bad json';
   await seedSave(page, raw);
@@ -57,7 +56,6 @@ test('a corrupt save is not overwritten silently', async ({ page }) => {
 });
 
 test('a future-schema save (v:2) is not wiped', async ({ page }) => {
-  test.fail(true, 'APP BUG KRYFES-MACHES-T2: a save of a newer schema is replaced by an empty v1 save');
   const problems = await watch(page);
   const raw = JSON.stringify({ ...fixture(), v: 2 });
   await seedSave(page, raw);
@@ -68,6 +66,25 @@ test('a future-schema save (v:2) is not wiped', async ({ page }) => {
   await newGameInSlot1(page);
   expect(problems).toEqual([]);
   expect(await survives(page, raw), 'the v:2 save is still in storage').toBe(true);
+});
+
+test('an unreadable save whose backup cannot be written stays under its own key', async ({ page }) => {
+  const problems = await watch(page);
+  const raw = '{bad json';
+  await seedSave(page, raw);
+  await page.addInitScript(() => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k: string, v: string) {
+      if (k.includes('.bak')) throw new DOMException('full', 'QuotaExceededError');
+      return set.call(this, k, v);
+    };
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: '▶ Παίξε' }).click();
+  await newGameInSlot1(page);
+  expect(problems).toEqual([]);
+  expect(await rawSave(page), 'the game plays from memory and leaves the save alone').toBe(raw);
+  expect(await page.evaluate(() => G.S && G.S.name)).toBe('Ηλέκτρα');
 });
 
 test('pull never lets an older hub copy beat a newer device copy', async ({ page }) => {
