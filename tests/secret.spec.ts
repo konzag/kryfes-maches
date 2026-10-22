@@ -2,14 +2,17 @@
 // may carry its name (tests/secret-scan.mjs, which holds only a SHA-256 of a folded form). The game decodes the
 // name from code points when the fight starts; the texts it then shows are compared by SHA-256, never by literal.
 // KM-SECRET-02: the same for the whole intro line; no two consecutive words of it may appear before the fight.
+import { execFileSync, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 import {
   INTRO_FOLD_SHA256, INTRO_PAIR_SHA256, fold, hasIntroFragment, hasSecret, scanTree, scanTreeIntro, wordPairHashes,
 } from './secret-scan.mjs';
+import { FAKE_PIN, fakeHub } from './lib';
 
 declare const G: any;
 declare const BOSSES: any[];
@@ -183,4 +186,121 @@ test('the served page and the city before boss 5 show no secret name; the fight 
   expect(Object.keys(now.slots[0]).sort()).toEqual(Object.keys(old.slots[0]).sort());
   for (const k of ['name', 'gender', 'look', 'bosses', 'minis', 'family', 'seed', 'created', 'finished']) expect(now.slots[0][k], k).toEqual(old.slots[0][k]);
   expect(problems).toEqual([]);
+});
+
+// ---------- PIN hygiene (level B). Only the fake hub's PIN (tests/lib.ts FAKE_PIN) is ever typed. ----------
+const pinIn = (s: string, pin: string) => new RegExp(`(^|\\D)${pin}(\\D|$)`).test(s);
+
+test('the PIN is never stored, logged or sent in a URL', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop');
+  const problems = problemsOf(page);
+  const logs: string[] = [];
+  page.on('console', (m) => logs.push(m.text()));
+  const sent: { method: string; url: string; body: string }[] = [];
+  page.on('request', (r) => sent.push({ method: r.method(), url: r.url(), body: r.postData() || '' }));
+  const hub = await fakeHub(page, { profiles: [{ id: 1, name: 'Αριάνα' }] });
+  // While the hub answers /api/unlock, the box must already be empty (the handler clears it before the request).
+  const boxDuringUnlock: string[] = [];
+  await page.route('**/api/unlock', async (route) => { boxDuringUnlock.push(await page.locator('#pin').inputValue()); await route.fallback(); });
+  await page.goto('/');
+  await page.getByRole('button', { name: '▶ Παίξε' }).click();
+  const pin = page.getByLabel('Οικογενειακός κωδικός (4 ψηφία)');
+  await expect(pin).toHaveAttribute('type', 'password');
+  await expect(pin).toHaveAttribute('autocomplete', 'off');
+  await pin.fill('1357');
+  await page.getByRole('button', { name: 'Άνοιγμα' }).click();
+  await expect(page.locator('#serverMsg')).toHaveText('Λάθος κωδικός');
+  await expect(pin).toHaveValue('');
+  await pin.fill(FAKE_PIN);
+  await pin.press('Enter');
+  await expect(page.getByRole('button', { name: 'Αριάνα' })).toBeVisible();
+  expect(hub.unlocked).toBe(true);
+  expect(boxDuringUnlock).toEqual(['', '']);
+  await expect(page.locator('#pin')).toHaveCount(0);
+
+  const stored = await page.evaluate(() => [localStorage, sessionStorage].flatMap((s) =>
+    Array.from({ length: s.length }, (_, i) => `${s.key(i)}=${s.getItem(s.key(i)!)}`)));
+  for (const p of ['1357', FAKE_PIN]) {
+    expect(stored.filter((s) => pinIn(s, p)), 'storage').toEqual([]);
+    expect(logs.filter((s) => pinIn(s, p)), 'console').toEqual([]);
+    expect(sent.filter((r) => pinIn(decodeURIComponent(r.url), p)).map((r) => r.url), 'request URL').toEqual([]);
+  }
+  const withPin = sent.filter((r) => pinIn(r.body, '1357') || pinIn(r.body, FAKE_PIN));
+  expect(withPin.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['POST /api/unlock', 'POST /api/unlock']);
+  expect(withPin.map((r) => JSON.parse(r.body))).toEqual([{ pin: '1357' }, { pin: FAKE_PIN }]);
+  expect(problems).toEqual([]);
+});
+
+test('429 lockout shows the wait message and keeps the game playable', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop');
+  const problems = problemsOf(page);
+  const hub = await fakeHub(page, { unlockStatus: 429 });
+  await page.goto('/');
+  await page.evaluate(([k, v]) => localStorage.setItem(k, v), [SAVE_KEY, fixture]);
+  await page.reload();
+  await page.getByRole('button', { name: '▶ Παίξε' }).click();
+  const pin = page.getByLabel('Οικογενειακός κωδικός (4 ψηφία)');
+  await pin.fill(FAKE_PIN);
+  await page.getByRole('button', { name: 'Άνοιγμα' }).click();
+  await expect(page.locator('#serverMsg')).toHaveText('Περίμενε λίγο και ξαναδοκίμασε');
+  expect(hub.unlocked).toBe(false);
+  await expect(pin).toBeVisible();
+  await expect(pin).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'Άνοιγμα' })).toBeEnabled();
+  // The device slots stay usable: the fixture hero continues, two empty slots offer a new game.
+  await expect(page.getByRole('button', { name: 'Νέο παιχνίδι' })).toHaveCount(2);
+  await page.getByRole('button', { name: 'Συνέχεια' }).click();
+  await expect.poll(() => page.evaluate(() => G.mode)).toBe('house');
+  expect(await page.evaluate(() => G.owner)).toBe('local');
+  expect(hub.log.filter((r) => r.method === 'PUT')).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
+// ---------- history scan (secret-scan.mjs --history), proven in a scratch repo with a harmless placeholder ----------
+test('the history scan finds a placeholder name in an old commit that the tree scan no longer sees', async ({}, info) => {
+  test.skip(info.project.name !== 'desktop');
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'km-history-'));
+  try {
+    const placeholder = 'zqxplacer'; // WORD_LEN letters that fold to themselves: a TEST pattern, not the name
+    expect(fold(placeholder)).toBe(placeholder);
+    expect(placeholder).toHaveLength(9);
+    const emptyConfig = path.join(scratch, 'gitconfig');
+    fs.writeFileSync(emptyConfig, '');
+    const repo = path.join(scratch, 'repo');
+    fs.mkdirSync(repo);
+    // Hermetic git: own GIT_DIR, no global/system config (no hooks, no signing), never the repo around the test.
+    const gitEnv = {
+      ...process.env, GIT_DIR: path.join(repo, '.git'), GIT_WORK_TREE: repo,
+      GIT_CEILING_DIRECTORIES: scratch, GIT_CONFIG_GLOBAL: emptyConfig, GIT_CONFIG_NOSYSTEM: '1',
+      GIT_AUTHOR_NAME: 'test', GIT_AUTHOR_EMAIL: 'test@example.invalid', GIT_COMMITTER_NAME: 'test', GIT_COMMITTER_EMAIL: 'test@example.invalid',
+    };
+    const git = (...a: string[]) => execFileSync('git', a, { cwd: repo, env: gitEnv, encoding: 'utf8' }).trim();
+    git('init', '-q', '-b', 'main');
+    fs.writeFileSync(path.join(repo, 'README.md'), 'scratch\n');
+    git('add', '-A'); git('commit', '-q', '-m', 'first');
+    fs.writeFileSync(path.join(repo, 'note.txt'), `a ${placeholder.toUpperCase()} hides here\n`);
+    git('add', '-A'); git('commit', '-q', '-m', 'add note');
+    const added = git('rev-parse', 'HEAD');
+    fs.rmSync(path.join(repo, 'note.txt'));
+    git('add', '-A'); git('commit', '-q', '-m', 'remove note');
+    const removed = git('rev-parse', 'HEAD');
+    expect(git('rev-list', '--all', '--count')).toBe('3');
+
+    const scan = (args: string[], extra: Record<string, string>) => {
+      const r = spawnSync(process.execPath, [path.join(here, 'secret-scan.mjs'), ...args, repo], { env: { ...gitEnv, ...extra }, encoding: 'utf8' });
+      return { code: r.status, out: r.stdout + r.stderr };
+    };
+    const testPattern = { SECRET_SCAN_TEST_SHA256: sha(placeholder) };
+    const hist = scan(['--history'], testPattern);
+    expect(hist.code, hist.out).toBe(1);
+    expect(hist.out).toContain(`${added}:`);
+    expect(hist.out).toContain(`${removed}:`);
+    expect(hist.out).toContain('secret name found');
+    expect(hist.out).toContain('secret-scan --history: 3 commits, 2 hit(s)');
+    const tree = scan([], testPattern);
+    expect(tree.code, tree.out).toBe(0); // the file is gone: only the history still has it
+    expect(scan(['--history'], {}).code).toBe(0); // without the test pattern the scratch history is clean
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
 });

@@ -13,6 +13,12 @@
 //
 // CLI: node tests/secret-scan.mjs [dir]  -> prints "file:line secret name found" / "file:line secret intro fragment
 // found" per hit, exit 1 on any hit.
+//      node tests/secret-scan.mjs --history [dir]  -> the same rules over `git log -p --all --text` (every commit
+// message and every diff line of every ref), prints "<commit>:<line of its patch> secret ..." per hit, exit 1 on any
+// hit. CI runs it with fetch-depth 0.
+// SECRET_SCAN_TEST_SHA256 (tests only): comma-separated SHA-256s of extra folded WORD_LEN windows that count as the
+// name, so tests/secret.spec.ts can prove the scans with a harmless placeholder. It can only add patterns.
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -39,6 +45,8 @@ const LATIN = { v: 'u', f: 'u', y: 'u', w: 'u' };
 const SKIP_DIRS = new Set(['.git', 'node_modules', 'test-results', 'playwright-report', 'blob-report']);
 
 const sha256 = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex');
+const TEST_SHA256 = new Set((process.env.SECRET_SCAN_TEST_SHA256 || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean));
+const isName = (h) => h === WORD_SHA256 || TEST_SHA256.has(h);
 
 /** JS (\uXXXX, \u{X}, \xHH), HTML (&#N; &#xH;) and URL (%HH) escapes -> characters. */
 export function decodeEscapes(s) {
@@ -63,7 +71,7 @@ export function fold(s) {
 /** True if the text holds the name in any covered spelling. */
 export function hasSecret(text) {
   const f = fold(text);
-  for (let i = 0; i + WORD_LEN <= f.length; i++) if (sha256(f.slice(i, i + WORD_LEN)) === WORD_SHA256) return true;
+  for (let i = 0; i + WORD_LEN <= f.length; i++) if (isName(sha256(f.slice(i, i + WORD_LEN)))) return true;
   return false;
 }
 
@@ -131,8 +139,37 @@ export function scanTreeIntro(root) {
   return hits;
 }
 
+/** The whole history of the repo at root as text: every commit message and patch of every ref, binaries as text. */
+export function historyText(root) {
+  return execFileSync('git', ['-C', root, 'log', '-p', '--all', '--text', '--no-color', '--no-ext-diff', '--format=commit %H%n%B'], {
+    encoding: 'utf8', maxBuffer: 1 << 30,
+  });
+}
+
+/** ["<commit>:<line> secret name found" | "... secret intro fragment found", ...] for every hit in the history. */
+export function scanHistory(root) {
+  const hits = [];
+  let commit = '?', n = 0;
+  for (const line of historyText(root).split(/\r?\n/)) {
+    const m = line.match(/^commit ([0-9a-f]{40})$/);
+    if (m) { commit = m[1]; n = 0; continue; }
+    n++;
+    if (line.length >= WORD_LEN && hasSecret(line)) hits.push(`${commit}:${n} secret name found`);
+    if (hasIntroFragment(line)) hits.push(`${commit}:${n} secret intro fragment found`);
+  }
+  return hits;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const root = path.resolve(process.argv[2] || path.join(path.dirname(fileURLToPath(import.meta.url)), '..'));
+  const args = process.argv.slice(2), history = args[0] === '--history';
+  const root = path.resolve((history ? args[1] : args[0]) || path.join(path.dirname(fileURLToPath(import.meta.url)), '..'));
+  if (history) {
+    const hits = scanHistory(root);
+    for (const h of hits) console.log(h);
+    const commits = execFileSync('git', ['-C', root, 'rev-list', '--all', '--count'], { encoding: 'utf8' }).trim();
+    console.log(`secret-scan --history: ${commits} commits, ${hits.length} hit(s)`);
+    process.exit(hits.length ? 1 : 0);
+  }
   const hits = scanTree(root), intro = scanTreeIntro(root);
   for (const h of hits) console.log(`${h} secret name found`);
   for (const h of intro) console.log(`${h} secret intro fragment found`);
