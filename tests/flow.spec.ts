@@ -7,6 +7,7 @@ import { SAVE_KEY, fixture, fixtureText, readSave, watch } from './lib';
 declare const G: any;
 declare const BOSSES: any[];
 declare function heroHurt(dmg: number, src?: unknown): void;
+declare function hitEnemy(e: unknown, dmg: number): void;
 
 test('defeat returns to a safe point keeping unlocks', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop');
@@ -54,5 +55,50 @@ test('defeat returns to a safe point keeping unlocks', async ({ page }, info) =>
   const saved = (await readSave(page)).slots[0];
   expect({ bosses: saved.bosses, minis: saved.minis, weapon: saved.look.weapon }).toEqual({ bosses: old.bosses, minis: old.minis, weapon: old.look.weapon });
   expect(await page.evaluate((id) => G.monsters.some((x: any) => x.id === id && x.hidden), boss.id)).toBe(true);
+  expect(problems).toEqual([]);
+});
+
+// KM-14: the ● on the wardrobe chips and the «ΝΕΟ» cards show what was unlocked since the last trip; going out to the
+// city marks them as seen (S.seenUnlock), so after the next trip they are gone on every tab. The win is scripted
+// (finishing hit on the first hidden fight), the rest is the child's own path: ⏸ → «🏡 Πήγαινε σπίτι» → «Βγες στην πόλη».
+test('new marks in the wardrobe go away after the next trip to the city (KM-14)', async ({ page }) => {
+  const problems = await watch(page);
+  const mode = () => page.evaluate(() => G.mode);
+  const goHome = async () => {
+    await page.getByRole('button', { name: 'Παύση' }).click();
+    await page.getByRole('button', { name: '🏡 Πήγαινε σπίτι' }).click();
+    await expect.poll(mode).toBe('house');
+  };
+  const toCity = async () => {
+    await page.getByRole('button', { name: /Βγες στην πόλη/ }).click();
+    await expect.poll(mode).toBe('city');
+  };
+  await page.goto('/');
+  await page.getByRole('button', { name: '▶ Παίξε' }).click();
+  await page.getByRole('button', { name: 'Νέο παιχνίδι' }).first().click();
+  await page.getByLabel('Πώς λένε τον ήρωα;').fill('Δοκιμή');
+  await page.getByRole('button', { name: /Ξεκίνα την περιπέτεια/ }).click();
+  await page.getByRole('button', { name: /Πάμε να ετοιμαστώ/ }).click();
+  await expect.poll(mode).toBe('house');
+  await toCity();
+
+  await page.evaluate(() => { const m = G.monsters.find((x: any) => x.id === 'm0'); G.hero.x = m.x; G.hero.y = m.y; });
+  await expect.poll(() => page.evaluate(() => !!G.fight), { timeout: 15_000 }).toBe(true);
+  await page.evaluate(() => G.fight.enemies.forEach((e: unknown) => hitEnemy(e, 1e6)));
+  await expect.poll(() => page.evaluate(() => !G.cine && !G.fight && G.S.minis.length), { timeout: 15_000 }).toBe(1);
+
+  await goHome();
+  await expect(page.locator('#wProg')).toContainText('Νίκες 1/20');
+  await expect(page.locator('#wChips button', { hasText: '●' }).first()).toBeVisible();
+  await expect(page.locator('#wGrid .opt .nw', { hasText: 'ΝΕΟ' }).first()).toBeVisible();
+
+  await toCity();
+  expect((await readSave(page)).slots[0].seenUnlock).toBe(1); // remembered on the device, not only in memory
+  await goHome();
+  for (const name of ['Πρόσωπο', 'Μαλλιά', 'Ρούχα', 'Μαγικά', 'Μάχη']) {
+    await page.locator('#wTabs button', { hasText: name }).click();
+    await expect(page.locator('#wChips button', { hasText: '●' }), name).toHaveCount(0);
+    await expect(page.locator('#wGrid .opt .nw'), name).toHaveCount(0);
+  }
   expect(problems).toEqual([]);
 });
