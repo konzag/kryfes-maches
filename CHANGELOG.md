@@ -33,6 +33,13 @@
   `tests/save.spec.ts` are gone (both tests pass); new test for the failed-backup case. Test-count floor 245 -> 247.
 
 ### Changed
+- **CI on every PR** (owner decision D21, rulesets with required checks): `.github/workflows/ci.yml` now runs on
+  `pull_request` into staging/main, on `push` to staging/main only (a PR branch commit runs CI once, not twice) and
+  on `workflow_dispatch`. Before, CI ran on push only, so a PR whose branch moved through GITHUB_TOKEN showed no
+  checks. Job ids / check names stay `test` and `gitleaks`.
+  - Tests: new `tests/ci-workflow.spec.ts` (file check, desktop project): triggers and branches, no paths filter,
+    workflow name `CI`, required jobs present, unconditioned and keeping their check names, no `${{ }}` inside a
+    `run:` script. Red on the old ci.yml. Test-count floor 265 → 271.
 - G1-GFX-2026-10-22 (PR #18): a clearly better look with the same gameplay, controls, difficulty, texts, save keys and save
   format.
   - **Ink and shadows:** clean ink outlines (buildings, roofs, trees, boats, cars, docks, hero and NPC bodies) and
