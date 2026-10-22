@@ -2,6 +2,56 @@
 
 ## [Unreleased]
 
+### Changed
+- G1-GFX-2026-10-22 (PR #18): a clearly better look with the same gameplay, controls, difficulty, texts, save keys and save
+  format.
+  - **Ink and shadows:** clean ink outlines (buildings, roofs, trees, boats, cars, docks, hero and NPC bodies) and
+    contact shadows.
+  - **Ground:**
+    - a meadow of tufts and flowers, stamped from pre-rendered sprites on a hashed 32-unit grid;
+    - curbs on the roads, plank docks, foam on the lake shore and a deeper middle of the lake.
+  - **Static ground:** every part is drawn only where the view is (culling). A tile cache was measured and dropped:
+    drawing a new tile while walking cost more than copying tiles saved.
+  - **Tree crowns** are sprites per radius and green.
+  - **Ambient life** (`CONFIG.ambientMax` = 60, one pool, delta time):
+    - drifting cloud shadows;
+    - a high layer of clouds and birds with 1.35x parallax (never over a fight);
+    - leaves and lake glints by day;
+    - fireflies by night.
+  - **Characters:**
+    - squash and stretch on steps and an idle breath for the hero and NPCs;
+    - monsters bounce with a squash, blink, have rosy cheeks and softer brows.
+  - **No more `ctx.filter` or per-frame `shadowBlur` in fights:**
+    - the hit flash is a white additive glow and the frost a pale-blue shell;
+    - eye, bag-light and projectile glows use the glow sprites;
+    - fights run at about 48 fps instead of 29-33 on the same machine (see the PR for all the numbers).
+  - **HUD and dialogs:**
+    - outlined icons (heart, pies, star, ability icons as sprites, outlined touch pads);
+    - toasts become speech bubbles with the hero's portrait;
+    - the boss intro becomes a ribbon with the monster's portrait;
+    - an «E» key cap in the prompt;
+    - HUD labels and the portrait are cached sprites;
+    - narrow windows (< 480 px) start the HUD under the shell buttons.
+  - **Screens:**
+    - an animated title logo (letters pop in, a slow wave, a neon underline, sparkles);
+    - card pop and house veil transitions with no opacity on the card, so text contrast holds from the first frame;
+    - a short canvas fade into the town and the ending;
+    - the ending gets layered clouds and hills;
+    - a mirror glint sweeps in the wardrobe.
+  - **Reduced motion and «Λιγότερα εφέ»:** no particles, no high layer, no drift, a static logo and no shake.
+    «Λιγότερα εφέ» (also the automatic switch on slow devices) also drops the ink outlines (`INK` becomes
+    see-through, so the browser skips those strokes) and the meadow marks.
+  - **Night tint:** the hour's tint is a plain see-through fill computed from the old multiply colour (exact on
+    white, within a few percent elsewhere) instead of a `'multiply'` fill, which re-reads the whole screen.
+  - `calm()` caches the reduced-motion media query (updated on its change event).
+  - **Tests and tools:**
+    - new `tests/look.spec.ts`: every screen at 4 sizes x light/dark with 0 console errors and axe 0 serious, the new
+      layers, reduced motion and low effects, no `ctx.filter`, and the old save fixture. The feature tests fail on
+      the old code.
+    - `tests/perf.spec.ts` (PERF=1) and `tests/evidence.spec.ts` (EVIDENCE=dir) for before/after numbers and
+      screenshots;
+    - README KM-51 to KM-58, before/after images in `docs/screens/gfx/`.
+
 ### Security
 - KM-SECRET-02: the whole intro line of boss 5's fight (every word of it, not only the name) is no longer
   in the page source: `index.html` keeps it as two more code-point constants (`SECRET_C`, `SECRET_D`) that
