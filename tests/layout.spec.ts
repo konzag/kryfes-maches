@@ -131,3 +131,29 @@ for (const [w, h] of [
     expect(problems).toEqual([]);
   });
 }
+
+declare function goCity(): void;
+declare const curScreen: string | null;
+
+test('§3a portrait touch: «🏡 Πήγαινε σπίτι» from the pause menu lands in the house with no menu left open', async ({ page }, info) => {
+  test.skip(info.project.name !== 'tablet', 'the rotate hint is shown only on a touch device');
+  const problems = await watch(page);
+  await seedSave(page, fixtureText);
+  await page.goto('/');
+  await page.getByRole('button', { name: '▶ Παίξε' }).tap();
+  await page.getByRole('button', { name: 'Συνέχεια' }).first().tap();
+  await expect.poll(() => page.evaluate(() => G.mode)).toBe('house');
+  await page.evaluate(() => goCity());
+  await expect.poll(() => page.evaluate(() => G.mode)).toBe('city');
+  // Turning the tablet to portrait while walking pauses the game; the pause menu shows with the strip.
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await expect(page.getByRole('button', { name: '🏡 Πήγαινε σπίτι' })).toBeVisible();
+  await expect(page.locator('#rotate')).toHaveClass(/strip/);
+  await page.getByRole('button', { name: '🏡 Πήγαινε σπίτι' }).tap();
+  await expect.poll(() => page.evaluate(() => G.mode)).toBe('house');
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => ({ screen: curScreen, hidden: (document.getElementById('screen') as HTMLElement).hidden }))).toEqual({ screen: null, hidden: true });
+  // The house is play: the full cover is back.
+  await expect(page.locator('#rotate')).not.toHaveClass(/strip/);
+  expect(problems).toEqual([]);
+});
