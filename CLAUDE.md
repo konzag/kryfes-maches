@@ -16,7 +16,8 @@ template flag was not set yet).
 - `tests/smoke.spec.ts`: Playwright (Chromium) under the hub CSP, projects `desktop` (keyboard) and `tablet`
   (touch): the full first-run flow, 10 s keyboard, 10 s touch, a scripted boss win ('cat').
 - `tests/serve.mjs` + `tests/hub-csp.mjs`: a stand-in for games-hub that sends the hub's game-page CSP.
-- `.github/workflows/ci.yml`: `test` (Playwright) + `gitleaks` on every push.
+- `.github/workflows/ci.yml`: `test` (secret scan, floor, Playwright) + `gitleaks` on every PR into staging/main and every
+  push to staging/main. A ruleset requires these two check names: keep the job ids (`tests/ci-workflow.spec.ts`).
 
 ## Rules
 - Served by games-hub at `/kryfes-maches/` (submodule `games/kryfes-maches`, pinned SHA) behind its CSP: one inline
