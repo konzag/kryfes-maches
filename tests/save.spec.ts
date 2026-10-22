@@ -3,7 +3,7 @@
 // storage still plays, an erased hub slot is a tombstone PUT. Key game.kryfes-maches.v1 and SCHEMA 1 unchanged;
 // tests/fixtures/save-v1.json is only read. Network: the fake hub (tests/lib.ts) or the stand-in's 503.
 import { expect, test, type Page } from '@playwright/test';
-import { SAVE_KEY, fakeHub, fixture, rawSave, readSave, seedSave, slotCalls, watch } from './lib';
+import { FAKE_PIN, SAVE_KEY, fakeHub, fixture, rawSave, readSave, seedSave, slotCalls, watch } from './lib';
 
 declare const G: any;
 declare const Store: any;
@@ -214,3 +214,43 @@ test('erasing a slot on level B sends a tombstone, not a DELETE', async ({ page 
   await expect.poll(async () => (await readSave(page)).dirty).toEqual({});
   expect(problems).toEqual([]);
 });
+
+// GAME-STANDARD §5 level B (port of games-template T5): the hub forgets the unlock for the saves while
+// /api/profiles still answers. A 401 from /api/save (PUT of a dirty slot, or GET of a slot) locks the home save
+// again: the slot screen asks for the family PIN, shows this device's slots, keeps the unsent save queued and never
+// touches the device save. After the PIN the queued save is sent.
+const device = slotOf('Συσκευή', 1500);
+const lockedSeed = (dirty?: Record<string, boolean>) =>
+  JSON.stringify({ ...JSON.parse(levelB([slotOf('Τοπικός', 2000), null, null], dirty)), slots: [device, null, null] });
+
+for (const path of ['PUT of the queued save', 'GET of a slot'] as const) {
+  test(`level B: a 401 from /api/save (${path}) asks for the family PIN again and keeps both saves`, async ({ page }) => {
+    const problems = await watch(page);
+    const dirty = path === 'PUT of the queued save' ? { '1:0': true } : undefined;
+    const hub = await fakeHub(page, { unlocked: true, profiles: [{ id: 1, name: 'Αριάνα' }], saveStatus: 401 });
+    const seed = lockedSeed(dirty);
+    await seedSave(page, seed);
+    await openSlots(page, () => hub.log.some((r) => r.path.startsWith('/api/save/')));
+    await expect(page.locator('#pin')).toBeVisible();
+    await expect(page.locator('#profileList')).toHaveCount(0);
+    await expect(names(page).first()).toHaveText('Συσκευή');
+    // One 401 is enough: no more save requests while locked.
+    expect(hub.log.filter((r) => r.path.startsWith('/api/save/'))).toHaveLength(1);
+    expect(await rawSave(page)).toBe(seed);
+
+    // The hub takes saves again: the family PIN unlocks, profile 1's slots come back and a queued save is sent.
+    hub.saveStatus = 0;
+    await page.locator('#pin').fill(FAKE_PIN);
+    await page.getByRole('button', { name: 'Άνοιγμα' }).click();
+    await expect(page.locator('#profileList')).toBeVisible();
+    await expect.poll(() => slotCalls(hub, 'GET', 1, 3).length).toBe(1);
+    await expect(names(page).first()).toHaveText('Τοπικός');
+    const d = await readSave(page);
+    expect(d.slots[0]).toEqual(device);
+    if (dirty) {
+      expect(JSON.parse(slotCalls(hub, 'PUT', 1, 1).at(-1)!.body!)).toEqual({ schema: 1, saved_at: 2000, data: expect.objectContaining({ name: 'Τοπικός' }) });
+      await expect.poll(async () => (await readSave(page)).dirty).toEqual({});
+    }
+    expect(problems).toEqual([]);
+  });
+}
