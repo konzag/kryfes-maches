@@ -16,8 +16,11 @@
   - `#screen` uses `align-items: safe center` and every menu opens scrolled to its top: a card taller than the
     window (slots at 780x360 or 360x740) was cut off above the window. Test: `tests/layout.spec.ts` «a slot screen
     taller than the window starts at its heading and scrolls» (red before).
+  - Review fix: `hideScreen()` calls `checkRotate(true)` (look only, no auto-pause), so «🏡 Πήγαινε σπίτι» from the
+    pause menu (or «Πάμε σπίτι» after a lost fight) in portrait no longer leaves a pause card over the house. Test:
+    `tests/layout.spec.ts` «portrait touch: «🏡 Πήγαινε σπίτι» from the pause menu lands in the house …» (red before).
   - T2 checked, no change: `tests/layout.spec.ts` «360x740: the shell buttons fit …» passes as is.
-  - Save key `game.kryfes-maches.v1`, `SCHEMA` 1 and the save format unchanged. Test-count floor 247 -> 263.
+  - Save key `game.kryfes-maches.v1`, `SCHEMA` 1 and the save format unchanged. Test-count floor 247 -> 265.
 - KM-14 (PR #22): the ● marks on the wardrobe chips and the «ΝΕΟ» cards go away again after the next trip to the city.
   The G1-GFX change (#18) put its portrait-cache reset in front of `goCity()`'s first line, so the trailing comment
   swallowed `S.seenUnlock = battlesWon(S); saveGame(false);`. Restored on its own line; graphics, save keys and save

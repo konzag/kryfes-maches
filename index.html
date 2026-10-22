@@ -2706,7 +2706,7 @@ function setMode(m) {
   if (m !== 'title') { /* keep screens controlled by showScreen */ }
 }
 let curScreen = null;
-function hideScreen() { curScreen = null; const s = $('screen'); s.hidden = true; s.className = ''; s.textContent = ''; checkRotate(); }
+function hideScreen() { curScreen = null; const s = $('screen'); s.hidden = true; s.className = ''; s.textContent = ''; checkRotate(true); }
 /* Slots: render at once with what the device knows, then ask the hub (PIN, profiles, newer saves) and re-render. */
 async function openSlots() {
   showScreen('slots');
@@ -3024,10 +3024,11 @@ $('bFull').addEventListener('click', toggleFull);
 $('bHome').addEventListener('click', () => { saveGame(false); if (location.pathname.indexOf(CONFIG.hubPath) === 0) location.href = '/'; else { G.paused = false; G.fight = null; showScreen('title'); } });
 document.addEventListener('visibilitychange', () => { if (document.hidden && G.mode === 'city' && !G.paused) togglePause(true); });
 window.addEventListener('blur', () => { if (G.mode === 'city' && !G.paused) togglePause(true); });
-function checkRotate() {
+// noPause: from hideScreen, whose caller may be about to change the mode (pause -> «Πήγαινε σπίτι»): only the look changes.
+function checkRotate(noPause) {
   const show = touchUI && innerHeight > innerWidth, strip = show && curScreen !== null; // a menu is open: strip only
   $('rotate').hidden = !show; $('rotate').classList.toggle('strip', strip); document.body.classList.toggle('rotstrip', strip);
-  if (show && !strip && G.mode === 'city' && !G.paused) togglePause(true); // pausing opens the pause menu (then: strip)
+  if (show && !strip && !noPause && G.mode === 'city' && !G.paused) togglePause(true); // pausing opens the pause menu (then: strip)
 }
 window.addEventListener('resize', resize);
 
