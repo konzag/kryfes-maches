@@ -472,11 +472,27 @@ const Store = {
     return d.remote[owner];
   },
   markDirty(d, owner, i) { if (owner && owner !== 'local') { d.dirty = d.dirty || {}; d.dirty[owner + ':' + i] = true; } },
+  hold: false, // true when an unreadable save could not be backed up: then write() keeps to memory and never replaces it
   read() {
-    try { const s = localStorage.getItem(SAVE_KEY); if (s) { const d = JSON.parse(s); if (d && d.v === SCHEMA && Array.isArray(d.slots)) return d; } } catch (e) { /* storage blocked */ }
+    try {
+      const s = localStorage.getItem(SAVE_KEY);
+      if (s) {
+        let d = null; try { d = JSON.parse(s); } catch (e) { /* half-written or hand-edited */ }
+        if (d && d.v === SCHEMA && Array.isArray(d.slots)) return d;
+        this.backup(s); // unreadable, or from a newer SCHEMA: keep a copy before the next write replaces it
+      }
+    } catch (e) { /* storage blocked */ }
     return this.mem || { v: SCHEMA, slots: [null, null, null] };
   },
-  write(d) { this.mem = d; try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); return true; } catch (e) { return false; } },
+  // A save this page cannot read is copied once to SAVE_KEY + '.bak' (or '.bak.<time>' if that one holds another).
+  backup(raw) {
+    const bak = SAVE_KEY + '.bak';
+    try {
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(bak) && localStorage.getItem(k) === raw) return; }
+      localStorage.setItem(localStorage.getItem(bak) === null ? bak : bak + '.' + Date.now(), raw);
+    } catch (e) { this.hold = true; }
+  },
+  write(d) { this.mem = d; if (this.hold) return false; try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); return true; } catch (e) { return false; } },
 };
 /* ---------- save level B: the hub, separate for every game (GET/PUT /api/save/<slug>/<profile>/<slot>) ----------
    Family PIN -> pick a hub profile -> 3 slots. If the hub does not answer (503 without a PIN, offline), the game
