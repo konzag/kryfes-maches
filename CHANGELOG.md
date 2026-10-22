@@ -3,6 +3,21 @@
 ## [Unreleased]
 
 ### Fixed
+- Port of the games-template fixes (games-template d1aa5fc, T5 + T3), GAME-STANDARD §5 / §3a:
+  - T5: a 401 from `/api/save` (PUT in `Server.push`, GET in `Server.pull`) sets `Server.state = 'locked'`, so the
+    slot screen asks for the family PIN again and shows the device slots; `syncPending` stops after it. The unsent
+    slot stays in `dirty` and is sent after the PIN; the device save is untouched. Before, the 401 was ignored and
+    the profile list stayed. Tests: `tests/save.spec.ts` «level B: a 401 from /api/save (PUT of the queued save |
+    GET of a slot) …» (fake hub knob `saveStatus`), red before, green now.
+  - T3: portrait on a touch device: the rotate hint covers the screen only while playing (no menu open); on the
+    menus `#rotate.strip` is a bottom strip with `pointer-events: none` (`checkRotate()` now also runs from
+    `showScreen` / `hideScreen`, and only auto-pauses when no menu is open). Tests: `tests/layout.spec.ts` §3a
+    portrait touch 820x1180 / 360x740 (red before), plus a guard that the full cover stays while playing.
+  - `#screen` uses `align-items: safe center` and every menu opens scrolled to its top: a card taller than the
+    window (slots at 780x360 or 360x740) was cut off above the window. Test: `tests/layout.spec.ts` «a slot screen
+    taller than the window starts at its heading and scrolls» (red before).
+  - T2 checked, no change: `tests/layout.spec.ts` «360x740: the shell buttons fit …» passes as is.
+  - Save key `game.kryfes-maches.v1`, `SCHEMA` 1 and the save format unchanged. Test-count floor 247 -> 263.
 - KM-14 (PR #22): the ● marks on the wardrobe chips and the «ΝΕΟ» cards go away again after the next trip to the city.
   The G1-GFX change (#18) put its portrait-cache reset in front of `goCity()`'s first line, so the trailing comment
   swallowed `S.seenUnlock = battlesWon(S); saveGame(false);`. Restored on its own line; graphics, save keys and save
