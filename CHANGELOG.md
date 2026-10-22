@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+- KM-14 (PR #22): the ● marks on the wardrobe chips and the «ΝΕΟ» cards go away again after the next trip to the city.
+  The G1-GFX change (#18) put its portrait-cache reset in front of `goCity()`'s first line, so the trailing comment
+  swallowed `S.seenUnlock = battlesWon(S); saveGame(false);`. Restored on its own line; graphics, save keys and save
+  format unchanged. New test `tests/flow.spec.ts` «new marks in the wardrobe go away after the next trip to the city
+  (KM-14)» (red on 6b5f923, green now).
+
 ### Changed
 - G1-GFX-2026-10-22 (PR #18): a clearly better look with the same gameplay, controls, difficulty, texts, save keys and save
   format.

@@ -2814,7 +2814,8 @@ function goHouse(first) {
   heroInit(); setMode('house'); music('house'); openWardrobe(first);
 }
 function goCity() {
-  const S = G.S; HudArt.face = null; HudArt.ports.clear(); // the look may have changed in the wardrobe S.seenUnlock = battlesWon(S); saveGame(false);
+  const S = G.S; S.seenUnlock = battlesWon(S); saveGame(false);
+  HudArt.face = null; HudArt.ports.clear(); // the look may have changed in the wardrobe
   if (!G.hero) heroInit(); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; G.hero.face = 1;
   populateCity(); setMode('city'); music('city');
   G.cam.x = G.hero.x; G.cam.y = G.hero.y - 30;
