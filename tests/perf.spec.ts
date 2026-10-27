@@ -1,6 +1,7 @@
 // Frame budget, before vs after (G1-GFX-2026-10-22). Not part of CI: runs only with PERF=1 (numbers depend on the
 // machine, so they are compared on the same machine, old code vs new code):
 //   PERF=1 npx playwright test tests/perf.spec.ts --project=tablet
+// PERF_WARM=<ms> walks that long first (the storybook sprite caches filled), to compare the steady state too.
 // The test-only hook wraps requestAnimationFrame from an init script, so it measures the old and the new index.html
 // the same way: script time per frame (update + draw calls) and frames per second, with the CPU slowed down 4x
 // (a mid tablet), at 1180x820 and pixel ratio 2.
@@ -50,6 +51,7 @@ test('frame budget (informative)', async ({ page }, info) => {
     await cdp.send('Emulation.setCPUThrottlingRate', { rate });
     await page.evaluate(() => { CONFIG.forceHour = 12; G.hero.x = 1200; G.hero.y = 1000; G.hero.hp = G.hero.max = 1e9; });
     await page.waitForTimeout(1000);
+    if (rate === 1 && process.env.PERF_WARM) await measure(page, Number(process.env.PERF_WARM), loop); // optional warm-up walk (sprite caches filled)
     out[`day@${rate}x`] = await measure(page, 8000, loop);
     await page.evaluate(() => { CONFIG.forceHour = 22; G.hero.x = 1060; G.hero.y = 1300; });
     await page.waitForTimeout(1000);
