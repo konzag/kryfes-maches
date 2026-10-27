@@ -11,7 +11,7 @@ declare const G: any;
 declare const DOCK: any;
 declare function blocked(x: number, y: number, r: number): boolean;
 
-const isTouch = (name: string) => name === 'tablet';
+const isTouch = (name: string) => name === 'tablet' || name === 'phone';
 
 async function press(page: Page, tap: boolean, name: string | RegExp) {
   const b = page.getByRole('button', { name }).first();
@@ -66,7 +66,7 @@ async function roundTrip(page: Page, tap: boolean) {
 }
 
 test('boat: town → «Νησάκι» → town, then the hero walks again (keyboard and finger)', async ({ page }, info) => {
-  test.skip(info.project.name !== 'desktop' && info.project.name !== 'tablet');
+  test.skip(!['desktop', 'tablet', 'phone'].includes(info.project.name));
   const tap = isTouch(info.project.name);
   const problems = await watch(page);
   await hook(page);
@@ -76,18 +76,20 @@ test('boat: town → «Νησάκι» → town, then the hero walks again (keybo
   expect(problems).toEqual([]);
 });
 
+// A save keeps no position (the city always starts at the house), so «from a save» = load it, then sail out and back.
 test('boat: from a saved game («Συνέχεια»), the trip there and back leaves the hero free to walk', async ({ page }, info) => {
-  test.skip(info.project.name !== 'desktop');
+  test.skip(info.project.name !== 'desktop' && info.project.name !== 'phone');
+  const tap = isTouch(info.project.name);
   const problems = await watch(page);
   await hook(page);
   await seedSave(page, fixtureText);
   await page.goto('/');
-  await press(page, false, '▶ Παίξε');
-  await page.getByRole('button', { name: 'Συνέχεια' }).first().click();
+  await press(page, tap, '▶ Παίξε');
+  await press(page, tap, 'Συνέχεια');
   await expect.poll(() => page.evaluate(() => G.mode)).toBe('house');
-  await press(page, false, /Βγες στην πόλη/);
+  await press(page, tap, /Βγες στην πόλη/);
   await expect.poll(() => page.evaluate(() => G.mode)).toBe('city');
-  await roundTrip(page, false);
+  await roundTrip(page, tap);
   expect(problems).toEqual([]);
 });
 
