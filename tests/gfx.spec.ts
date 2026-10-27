@@ -294,8 +294,9 @@ test('storybook paint: sprites baked once and copied; the player has a fixed fra
   test.skip(info.project.name !== 'desktop');
   const problems = await open(page, { forceHour: 12 });
   await toCity(page, false);
-  // the player's set: 2 facings x (10 walk steps + 6 breaths + 6 attack steps standing + 6 moving) = 56, then no more
-  await expect.poll(async () => (await dbg(page)).paint.playerFrames, { timeout: 15_000 }).toBe(56);
+  // the player's set: 2 faces («happy» in the city, «grit» in a fight) x 2 facings x (10 walk steps + 6 breaths + 6
+  // attack steps standing + 6 moving) = 112, then no more
+  await expect.poll(async () => (await dbg(page)).paint.playerFrames, { timeout: 30_000 }).toBe(112);
   const a = (await dbg(page)).paint;
   expect(a.mood).toBe('day');
   expect(a.player).toBe(await page.evaluate(() => JSON.stringify(G.S.look)));
@@ -306,7 +307,7 @@ test('storybook paint: sprites baked once and copied; the player has a fixed fra
   expect(a.layers.fore).toBe(2); // layer 4: leaves at the left and right edges
   await page.waitForTimeout(2000);
   const b = (await dbg(page)).paint;
-  expect(b.playerFrames).toBe(56); // standing still repaints nothing of the player
+  expect(b.playerFrames).toBe(112); // standing still repaints nothing of the player
   expect(b.foreBuilds).toBe(a.foreBuilds); // the leaf layer is painted once per mood
   // sunset, then night: the houses in view are repainted in the new mood within a second; the leaves once more
   for (const [hour, mood] of [[18.6, 'sunset'], [22, 'night']] as const) {
@@ -316,7 +317,7 @@ test('storybook paint: sprites baked once and copied; the player has a fixed fra
   }
   const n = (await dbg(page)).paint;
   expect(n.foreBuilds).toBe(a.foreBuilds + 2);
-  expect(n.playerFrames).toBe(56); // people keep their sprites: the hour's tint colours them
+  expect(n.playerFrames).toBe(112); // people keep their sprites: the hour's tint colours them
   const day = a.P as { shadowLen: number; key: string; rim: string }, night = n.P as typeof day;
   expect(night.shadowLen).toBeLessThan(day.shadowLen); // short shadows at night ...
   expect(night.key).not.toBe(day.key); // ... a cool key light
