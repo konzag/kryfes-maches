@@ -14,6 +14,12 @@ declare const CONFIG: unknown;
 type Debug = {
   hour: number; dark: number; neon: number; theme: string; lowFx: boolean; fx: number; frameMs: number; frames: number;
   lamps: number; places: { name: string; cue: string; level: number }[];
+  paint: Paint;
+};
+type Layers = { chars: number; builds: number; fore: number; post: number; sparks: number; bm: Record<string, number> };
+type Paint = {
+  mood: string; P: Record<string, unknown>; R: number; looks: string[]; player: string; playerFrames: number; builds: number;
+  buildMoods: string[]; bakes: number; bakeMs: number; fallbacks: number; layers: Layers; foreBuilds: number; vigOn: boolean;
 };
 const dbg = (page: Page) => page.evaluate(() => (window as any).__kmDebug() as Debug);
 
@@ -251,6 +257,8 @@ for (const calmMotion of [false, true]) {
     expect(words.length).toBeGreaterThan(0);
     for (const w of words) expect(['ΜΠΑΜ!', 'ΠΟΥΦ!', 'ΖΑΠ!', 'ΚΡΑΚ!']).toContain(w);
     expect(await page.evaluate(() => G.fx.some((f: any) => f.kind === 'spark'))).toBe(true);
+    // GAMES-GFX: the monster turns into additive-glow sparkle sprites (drawn in the next frames)
+    await expect.poll(async () => (await dbg(page)).paint.layers.sparks).toBeGreaterThan(0);
     const shake = await page.evaluate(() => G.shake);
     if (calmMotion) expect(shake).toBe(0); else expect(shake).toBeGreaterThan(0);
     expect(problems).toEqual([]);
@@ -277,4 +285,53 @@ test('frame time: average over 10 s at 1180x820 with effects on (informative)', 
   const line = `FRAME-TIME 1180x820 effects on, headless Chromium: ${out.join('; ')}`;
   console.log(line);
   info.annotations.push({ type: 'frame-time', description: line });
+});
+
+// GAMES-GFX (storybook, art direction v1 approved 27/10): people and houses are painted once into sprites (key light,
+// rim light, ink outline) and copied every frame; the player's frames are a fixed set per look; the moods follow the
+// game's clock and repaint the houses in view; «Λιγότερα εφέ» keeps the plain vector art.
+test('storybook paint: sprites baked once and copied; the player has a fixed frame set; houses in view carry the mood', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop');
+  const problems = await open(page, { forceHour: 12 });
+  await toCity(page, false);
+  // the player's set: 2 faces («happy» in the city, «grit» in a fight) x 2 facings x (10 walk steps + 6 breaths + 6
+  // attack steps standing + 6 moving) = 112, then no more
+  await expect.poll(async () => (await dbg(page)).paint.playerFrames, { timeout: 30_000 }).toBe(112);
+  const a = (await dbg(page)).paint;
+  expect(a.mood).toBe('day');
+  expect(a.player).toBe(await page.evaluate(() => JSON.stringify(G.S.look)));
+  expect(a.looks).toContain(a.player);
+  expect(a.layers.chars).toBeGreaterThan(0); // the player (and passers-by) drawn from sprites
+  expect(a.layers.builds).toBeGreaterThan(0);
+  expect(a.layers.bm).toEqual({ day: a.layers.builds });
+  expect(a.layers.fore).toBe(2); // layer 4: leaves at the left and right edges
+  await page.waitForTimeout(2000);
+  const b = (await dbg(page)).paint;
+  expect(b.playerFrames).toBe(112); // standing still repaints nothing of the player
+  expect(b.foreBuilds).toBe(a.foreBuilds); // the leaf layer is painted once per mood
+  // sunset, then night: the houses in view are repainted in the new mood within a second; the leaves once more
+  for (const [hour, mood] of [[18.6, 'sunset'], [22, 'night']] as const) {
+    await page.evaluate((h) => { (CONFIG as { forceHour: number }).forceHour = h; }, hour);
+    await expect.poll(async () => (await dbg(page)).paint.mood).toBe(mood);
+    await expect.poll(async () => Object.keys((await dbg(page)).paint.layers.bm), { timeout: 5000 }).toEqual([mood]);
+  }
+  const n = (await dbg(page)).paint;
+  expect(n.foreBuilds).toBe(a.foreBuilds + 2);
+  expect(n.playerFrames).toBe(112); // people keep their sprites: the hour's tint colours them
+  const day = a.P as { shadowLen: number; key: string; rim: string }, night = n.P as typeof day;
+  expect(night.shadowLen).toBeLessThan(day.shadowLen); // short shadows at night ...
+  expect(night.key).not.toBe(day.key); // ... a cool key light
+  expect(problems).toEqual([]);
+});
+
+test('«Λιγότερα εφέ»: the plain vector art, no storybook sprites, leaves or vignette', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop');
+  await page.addInitScript(([k]) => localStorage.setItem(k, JSON.stringify({ theme: 'auto', lowFx: true })), [SETTINGS_KEY]);
+  const problems = await open(page, { forceHour: 22 });
+  await toCity(page, false);
+  await page.waitForTimeout(1500);
+  const p = (await dbg(page)).paint;
+  expect(p.bakes).toBe(0);
+  expect(p.layers).toEqual(expect.objectContaining({ chars: 0, builds: 0, fore: 0, post: 0 }));
+  expect(problems).toEqual([]);
 });

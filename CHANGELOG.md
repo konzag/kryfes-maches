@@ -2,7 +2,34 @@
 
 ## [Unreleased]
 
+### Added
+- GAMES-GFX storybook look (art direction v1, owner «ναι» 2026-10-27), KM-62..KM-64:
+  - `PALETTE` (day / sunset / night tokens: key, shade, rim, ink, shadow length, vignette, grain, leaves); the mood
+    follows the game clock (`moodOf()` from `Sky`).
+  - `paintHero` / `paintBuilding`: people and houses are baked once into offscreen sprites (`finish()`: key/shade
+    overlay, rim light, varied ink outline; houses also get paper grain, glass highlights and their soft cast shadow)
+    and copied every frame. People: frames per look (`lookKey`), facing, walk step, breath, attack step, expression and
+    pose; bob, squash, fall, blink, aura and shadow stay live. The player's old look is dropped when the wardrobe
+    changes it; the player's frame set (112: the city's «happy» and the fight's «grit» face) is pre-baked in spare
+    frames. At most one bake per frame, and only every third frame while frames run over 20 ms; meanwhile the
+    nearest painted frame, else the live vector drawing. Sprites are baked at up to 2 px per world unit (at 3 a
+    tablet held ~70 MB of sprites after a minute; now ~37 MB). Houses and tree crowns are repainted per mood; people keep the day finish under the hour's tint.
+  - Soft cast shadows along the key light (`castShadow`), sparkle sprites with additive glow (`sparkSprite`), a
+    foreground leaf layer at 1.7x the camera (`foreLayer`, explore only), a night vignette carried by the hour's tint
+    fill (`vignetteFill`, only while frames stay under ~17.5 ms on average).
+  - «Λιγότερα εφέ» keeps the plain vector drawing (no sprites, leaves or vignette).
+  - Debug state `__kmDebug().paint` (test hook only). Tests: `tests/gfx.spec.ts` «storybook paint …» and ««Λιγότερα
+    εφέ»: the plain vector art …», the big-hits test checks the sparkle sprites, `tests/dressup.spec.ts` «wardrobe →
+    town: the hero's sprite cache is keyed per look …» (all red on staging 1e264b4). `tests/perf.spec.ts`: optional
+    `PERF_WARM`. Gameplay, controls, world, save key `game.kryfes-maches.v1`, `SCHEMA` 1 and the hub contract unchanged.
+    Test-count floor 271 -> 286.
+
 ### Fixed
+- KM-BOAT (owner bug 27/10): after «Βάρκα για την πόλη» the hero could not walk. `boat()` set the hero on
+  `DOCK.main`, which `blocked()` counts as lake (the lake ellipse widened by the hero's 12 px), so every step was
+  refused until pause → home → town. The boat now lands on `boatLanding(to)`: the dock itself if the hero can
+  stand there, else the nearest such point (rings of 4 px). Tests: new `tests/boat.spec.ts` (town → Νησάκι → town
+  by keys and by finger, from a save, every landing walkable), red on staging 76235f3. README KM-65.
 - Port of the games-template fixes (games-template d1aa5fc, T5 + T3), GAME-STANDARD §5 / §3a:
   - T5: a 401 from `/api/save` (PUT in `Server.push`, GET in `Server.pull`) sets `Server.state = 'locked'`, so the
     slot screen asks for the family PIN again and shows the device slots; `syncPending` stops after it. The unsent

@@ -255,3 +255,32 @@ for (const scheme of ['light', 'dark'] as const) {
     });
   }
 }
+
+// GAMES-GFX: the hero in town is drawn from storybook sprites cached per look; a new look from the wardrobe gets its
+// own frames and the old look's frames are dropped (no stale outfit, no memory kept for it).
+test('wardrobe → town: the hero\'s sprite cache is keyed per look and rebuilt on a wardrobe change', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'one project is enough');
+  const problems = await watch(page);
+  await page.addInitScript(() => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9 } }; });
+  const paint = () => page.evaluate(() => (window as any).__kmDebug().paint as { player: string; looks: string[]; playerFrames: number });
+  const look = () => page.evaluate(() => JSON.stringify((G as any).S.look));
+  await toHouse(page);
+  await page.locator('#wOut').click();
+  await expect.poll(() => page.evaluate(() => G.mode)).toBe('city');
+  await expect.poll(async () => (await paint()).playerFrames).toBeGreaterThan(0);
+  const first = await paint();
+  expect(first.player).toBe(await look());
+  await page.evaluate(() => (window as any).goHouse());
+  await expect(page.locator('#house')).toBeVisible();
+  const before = await look();
+  for (let i = 0; i < 5 && (await look()) === before; i++) await page.locator('#wRandom').click();
+  const now = await look();
+  expect(now).not.toBe(before);
+  await page.locator('#wOut').click();
+  await expect.poll(() => page.evaluate(() => G.mode)).toBe('city');
+  await expect.poll(async () => (await paint()).player).toBe(now);
+  const after = await paint();
+  expect(after.looks).not.toContain(first.player); // the old outfit's frames are gone
+  expect(after.playerFrames).toBeGreaterThan(0);
+  expect(problems).toEqual([]);
+});
