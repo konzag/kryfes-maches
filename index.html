@@ -2388,7 +2388,17 @@ function updateHero(dt) {
   }
   if (G.portal && !G.portal.found && dist(h.x, h.y, G.portal.x, G.portal.y) < 260) { G.portal.found = true; toast('Βρήκες τη μαγική πύλη!', '#ff9bf0'); sfx('portal'); }
 }
-function boat(to) { const h = G.hero; sfx('splash'); G.fade = { t: 0, dur: .7, mid: () => { h.x = to.x; h.y = to.y; } }; }
+function boat(to) { const h = G.hero; sfx('splash'); G.fade = { t: 0, dur: .7, mid: () => { const p = boatLanding(to); h.x = p.x; h.y = p.y; } }; }
+/* KM-BOAT: the town dock itself counts as lake for the hero (the lake ellipse widened by 12 px), so landing on it froze
+   the hero (every step blocked). Land on the nearest point the hero can stand on (rings of 4 px around the dock). */
+function boatLanding(p) {
+  if (!blocked(p.x, p.y, 12)) return p;
+  for (let d = 4; d <= 120; d += 4) for (let k = 0; k < 16; k++) {
+    const a = k / 16 * TAU, x = p.x + Math.cos(a) * d, y = p.y + Math.sin(a) * d;
+    if (!blocked(x, y, 12)) return { x, y };
+  }
+  return p;
+}
 function interact() { if (G.mode === 'city' && G.prompt && !G.cine && !G.dead) G.prompt.act(); }
 function enterPortal() {
   sfx('portal'); music(null);

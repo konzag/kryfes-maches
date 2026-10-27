@@ -25,6 +25,11 @@
     Test-count floor 271 -> 286.
 
 ### Fixed
+- KM-BOAT (owner bug 27/10): after «Βάρκα για την πόλη» the hero could not walk. `boat()` set the hero on
+  `DOCK.main`, which `blocked()` counts as lake (the lake ellipse widened by the hero's 12 px), so every step was
+  refused until pause → home → town. The boat now lands on `boatLanding(to)`: the dock itself if the hero can
+  stand there, else the nearest such point (rings of 4 px). Tests: new `tests/boat.spec.ts` (town → Νησάκι → town
+  by keys and by finger, from a save, every landing walkable), red on staging 76235f3. README KM-65.
 - Port of the games-template fixes (games-template d1aa5fc, T5 + T3), GAME-STANDARD §5 / §3a:
   - T5: a 401 from `/api/save` (PUT in `Server.push`, GET in `Server.pull`) sets `Server.state = 'locked'`, so the
     slot screen asks for the family PIN again and shows the device slots; `syncPending` stops after it. The unsent
