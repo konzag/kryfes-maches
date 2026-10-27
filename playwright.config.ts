@@ -24,12 +24,13 @@ export default defineConfig({
       name: 'tablet',
       use: { viewport: { width: 1180, height: 820 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
     },
-    // Dress-up (tests/dressup.spec.ts) and graphics (tests/gfx.spec.ts) also on a landscape phone (touch) and two
+    // Dress-up (tests/dressup.spec.ts) and graphics (tests/gfx.spec.ts) also on a landscape phone (touch; the boat
+    // regression tests/boat.spec.ts too) and two
     // portrait windows. Portrait runs without touch: on a touch device in portrait the game shows its «γύρισε τη
     // συσκευή» screen instead.
     {
       name: 'phone',
-      testMatch: /(dressup|gfx)\.spec\.ts/,
+      testMatch: /(dressup|gfx|boat)\.spec\.ts/,
       use: { viewport: { width: 780, height: 360 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
     },
     { name: 'narrow-portrait', testMatch: /(dressup|gfx)\.spec\.ts/, use: { viewport: { width: 360, height: 780 } } },

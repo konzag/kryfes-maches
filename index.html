@@ -631,9 +631,9 @@ function drawHero(c, L, o) {
   // squash and stretch (the player only: a non-uniform scale on every passer-by was the costliest part of a night
   // frame): a little shorter and wider when a foot lands, taller in between; a slow breath when standing
   if (o.squash) { const sq = mv ? (.5 - Math.abs(Math.cos(t * 11))) * .06 : Math.sin(t * 2.2) * .012; c.scale(1 - sq * .6, 1 + sq); }
-  c.translate(0, -bob);
+  if (!o.noBob) c.translate(0, -bob); // the storybook sprites (paintHero) are baked without bob/aura and add them live
   if (o.blink && Math.floor(t * 20) % 2) c.globalAlpha = .45;
-  if (L.aura !== 'none') drawAura(c, L.aura, t, 0);
+  if (L.aura !== 'none' && !o.noAura) drawAura(c, L.aura, t, 0);
   if (L.wings !== 'none') drawWings(c, L.wings, t, capeC);
   if (L.cape !== 'none') drawCape(c, L.cape, capeC, t);
   if (L.top === 'hoodie') { c.fillStyle = shade(topC, -.15); circ(c, 0, -47, 12.5); c.fill(); }
@@ -646,7 +646,7 @@ function drawHero(c, L, o) {
   drawHead(c, L, o.expr || 'happy', t, skin, hairC, topC);
   const w = L.weapon ? weaponOf(L) : null;
   drawArm(c, L, 1, -sw, o.atk || 0, skin, topC, w, o.pose);
-  if (L.aura !== 'none') drawAura(c, L.aura, t, 1);
+  if (L.aura !== 'none' && !o.noAura) drawAura(c, L.aura, t, 1);
   c.restore();
 }
 
@@ -1375,6 +1375,235 @@ function glow(c, x, y, r, col, a) {
   const op = c.globalCompositeOperation, ga = c.globalAlpha; c.globalCompositeOperation = 'lighter'; c.globalAlpha = Math.min(1, a);
   c.drawImage(glowSprite(col), x - r, y - r, r * 2, r * 2); c.globalCompositeOperation = op; c.globalAlpha = ga === 1 ? 1 : ga;
 }
+/* ============================================================
+   Storybook paint (GAMES-GFX 2026-10-26, art direction v1 approved by the owner 27/10)
+   Every character and house is painted ONCE into an offscreen canvas (base drawing + the finish below) and then only
+   copied each frame. The finish = a warm key light from the top-left and a cool shade towards the bottom-right, a rim
+   light on the lit edge and a soft ink outline of varied weight. The tokens come from PALETTE, one set per mood
+   (day / sunset / night, from the game's own clock). People keep the day finish (the hour's screen tint colours them,
+   so a mood change repaints none of them); houses, tree crowns, shadows, leaves and the paper follow the mood. A
+   sprite keeps its old mood until it can be repainted (at most Paint.max bakes per frame, the rest wait), so a mood
+   change never blinks. «Λιγότερα εφέ» skips all of it
+   and draws the plain vector art as before (the light path for slow devices).
+   Depth: ground (1) → y-sorted town and people (2) → clouds and birds at 1.35x the camera (3, highLayer) → leaves at
+   the screen's edges at 1.7x the camera (4, foreLayer). At sunset and night the hour's tint carries a vignette.
+   ============================================================ */
+const PALETTE = {
+  day: { key: '#fff0cf', keyA: .30, shade: '#3d4f9a', shadeA: .26, rim: '#fff6dd', rimA: .62, ink: '#2a1f45', inkA: .62,
+    shadowA: .30, shadowLen: 1, vig: .16, grain: .10, leaf: ['#5f9a4a', '#3f7a3d', '#24502c'] },
+  sunset: { key: '#ffbf73', keyA: .42, shade: '#5a3f8f', shadeA: .30, rim: '#ffcf8f', rimA: .85, ink: '#3a2430', inkA: .62,
+    shadowA: .34, shadowLen: 2.1, vig: .24, grain: .10, leaf: ['#6f8a42', '#4f6a36', '#2f4326'] },
+  night: { key: '#c8d4ff', keyA: .18, shade: '#1f2a66', shadeA: .36, rim: '#d6e0ff', rimA: .50, ink: '#1e1a33', inkA: .66,
+    shadowA: .26, shadowLen: .7, vig: .34, grain: .08, leaf: ['#2f4f52', '#22393f', '#16262c'] },
+};
+const IDLE_LOOP = TAU / 2.2; // one breath of a standing hero (drawHero: sin(t * 2.2))
+const Paint = { mood: 'day', P: PALETTE.day, R: 2, max: 1, budget: 0, frame: 0, bakes: 0, bakeMs: 0, fallbacks: 0,
+  chars: new Map(), builds: new Map(), player: '', fore: null, foreBuilds: 0, layers: {}, ema: 0, vigOn: true };
+const paintOn = () => !Settings.lowFx;
+function moodOf() { return Sky.dark > .5 ? 'night' : Sky.warm > .4 ? 'sunset' : 'day'; }
+function paintCanvas(w, h) { const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; }
+const rgbaOf = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+let NOISE = null;
+function noiseTile() { // 128x128 grey grain, the paper of the storybook (one tile, repeated)
+  if (NOISE) return NOISE;
+  const c = paintCanvas(128, 128), x = c.getContext('2d'), d = x.createImageData(128, 128), r = seeded(3);
+  for (let i = 0; i < d.data.length; i += 4) { const v = r() > .5 ? 255 : 0; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = r() * 80; }
+  x.putImageData(d, 0, 0); return (NOISE = c);
+}
+/* Two scratch canvases shared by every bake (a new canvas per bake was the dearest part of it). */
+const Scratch = [null, null];
+function scratch(i, w, h) {
+  let c = Scratch[i]; if (!c) c = Scratch[i] = paintCanvas(w, h);
+  if (c.width < w || c.height < h) { c.width = Math.max(c.width, w); c.height = Math.max(c.height, h); }
+  const x = c.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1; x.clearRect(0, 0, c.width, c.height);
+  return c;
+}
+/* The finish on a finished base painting (canvas pixels; R = pixels per world unit). */
+function finish(c, P, R, grain) {
+  const w = c.width, h = c.height, x = c.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0);
+  const sil = scratch(0, w, h), s = sil.getContext('2d'); s.drawImage(c, 0, 0); s.globalCompositeOperation = 'source-in'; s.fillStyle = rgbaOf(P.ink, P.inkA); s.fillRect(0, 0, w, h);
+  const g = x.createLinearGradient(0, 0, w * .9, h); g.addColorStop(0, rgbaOf(P.key, P.keyA)); g.addColorStop(.45, rgbaOf(P.key, 0)); g.addColorStop(.55, rgbaOf(P.shade, 0)); g.addColorStop(1, rgbaOf(P.shade, P.shadeA));
+  x.globalCompositeOperation = 'source-atop'; x.fillStyle = g; x.fillRect(0, 0, w, h);
+  const rim = scratch(1, w, h), q = rim.getContext('2d'); q.drawImage(c, 0, 0); q.globalCompositeOperation = 'source-in'; q.fillStyle = P.rim; q.fillRect(0, 0, w, h);
+  q.globalCompositeOperation = 'destination-out'; q.drawImage(c, .85 * R, .85 * R); // the lit edge: top-left, where the key light comes from
+  x.globalAlpha = P.rimA; x.drawImage(rim, 0, 0, w, h, 0, 0, w, h); x.globalAlpha = 1;
+  if (grain) { x.globalAlpha = grain; x.fillStyle = x.createPattern(noiseTile(), 'repeat'); x.fillRect(0, 0, w, h); x.globalAlpha = 1; }
+  // ink outline behind the painting, a little heavier on the shade side (bottom-right)
+  x.globalCompositeOperation = 'destination-over'; const o = Math.max(.6, R * .55);
+  for (const [dx, dy] of [[-.8, -.6], [.7, -.8], [-.6, .9], [1.25, 1.25], [1.3, -.1]]) x.drawImage(sil, 0, 0, w, h, dx * o, dy * o, w, h);
+  x.globalCompositeOperation = 'source-over';
+}
+/* Soft cast shadows along the key light (long at sunset, short at night): two ellipse fills, a wide faint one and a
+   smaller darker one (a stretched blurred image cost a fifth of a night frame in software drawing). */
+function castShadow(c, x, y, w, k) {
+  const P = Paint.P, L = P.shadowLen, a = P.shadowA * (k == null ? 1 : k), cx = x + w * .14 * (L - 1), rx = w * (.55 + .15 * (L - 1));
+  c.fillStyle = `rgba(29,26,58,${(a * .45).toFixed(3)})`; ell(c, cx, y, rx, w * .16); c.fill();
+  c.fillStyle = `rgba(29,26,58,${(a * .6).toFixed(3)})`; ell(c, cx - w * .04, y, rx * .68, w * .1); c.fill();
+}
+function paintFrame() { // once per world frame: mood, bake budget, layer counters
+  // while frames are slow (over 20 ms on average) only every third frame may bake: a bake would drop the frame
+  Paint.frame++; Paint.budget = Paint.ema > 20 && Paint.frame % 3 ? 0 : Paint.max; Paint.layers = { chars: 0, builds: 0, fore: 0, post: 0, sparks: 0, bm: {} };
+  const m = moodOf(); if (m !== Paint.mood) { Paint.mood = m; Paint.P = PALETTE[m]; TreeArt.map.clear(); }
+}
+/* World sprites are baked at the explore camera's scale (the largest), capped, so a fight's zoom-out only copies them
+   smaller; a resize bakes them again. */
+function paintScale() {
+  // capped at 2: at 3 a tablet held ~70 MB of sprites after a minute and a bake cost a frame (perf.spec, CPU 4x)
+  const R = clamp(Math.ceil(CH * CONFIG.exploreHeroScreen / 62 * DPR * 2) / 2, 1, 2);
+  if (R !== Paint.R) { Paint.R = R; Paint.chars.clear(); Paint.builds.clear(); }
+}
+const lookKey = L => JSON.stringify(L);
+/* Characters: frames per look (the cache key), per facing (the key light stays top-left), per walk step (10) or
+   breath (6; passers-by 6 steps and one standing frame), attack step, expression and pose. Bob, squash, a fall, the blink of invulnerability, the aura and the
+   shadow stay live, so the motion stays smooth. The player's old look is dropped when the wardrobe changes it. */
+const HERO_BOX = { x0: -48, y0: -94, x1: 48, y1: 8 };
+/* The frame of a look for a facing, walk/breath step, attack step, expression and pose: key + what to draw. */
+function heroFrameOf(npc, t, mv, face, atk0, expr, pose) {
+  const nWalk = npc ? 6 : 10, nIdle = npc ? 1 : 6, atk = atk0 ? Math.round(atk0 * 6) / 6 : 0;
+  let ph = 0, tq = 0;
+  if (!atk) {
+    if (mv) { const a = (((t * 11) % TAU) + TAU) % TAU; ph = Math.floor(a / TAU * nWalk); tq = (ph + .5) / nWalk * TAU / 11; }
+    else { const a = ((t % IDLE_LOOP) + IDLE_LOOP) % IDLE_LOOP; ph = Math.floor(a / IDLE_LOOP * nIdle); tq = (ph + .5) / nIdle * IDLE_LOOP; }
+  }
+  return { fk: `${face}|${mv}|${ph}|${atk}|${expr || 'happy'}|${pose || ''}`, tq, mv, face, atk, expr, pose };
+}
+function bakeHeroFrame(L, set, f, R) {
+  Paint.budget--; Paint.bakes++; const b0 = performance.now();
+  const B = HERO_BOX, cnv = paintCanvas((B.x1 - B.x0) * R, (B.y1 - B.y0) * R), x = cnv.getContext('2d');
+  x.setTransform(R, 0, 0, R, -B.x0 * R, -B.y0 * R); x.lineCap = 'round'; x.lineJoin = 'round';
+  drawHero(x, L, { x: 0, y: 0, s: 1, face: f.face, t: f.tq, moving: f.mv, atk: f.atk, expr: f.expr, pose: f.pose, noShadow: true, noBob: true, noAura: true });
+  finish(cnv, PALETTE.day, R, 0); Paint.bakeMs += performance.now() - b0;
+  const sp = { c: cnv, R }; set.frames.set(f.fk, sp);
+  if (set.frames.size > (set.npc ? 32 : 128)) set.frames.delete(set.frames.keys().next().value); // oldest first (player: 2 faces x 56)
+  if (Paint.chars.size > 26) { // passers-by out of sight for the longest go first (never the player)
+    let old = null; for (const [k, v] of Paint.chars) if (k !== Paint.player && (!old || v.seen < old[1].seen)) old = [k, v];
+    if (old) Paint.chars.delete(old[0]);
+  }
+  return sp;
+}
+function lookSet(L, npc) {
+  const lk = lookKey(L);
+  if (!npc && Paint.player !== lk) { if (Paint.player) Paint.chars.delete(Paint.player); Paint.player = lk; }
+  let set = Paint.chars.get(lk); if (!set) { set = { frames: new Map(), seen: 0, npc }; Paint.chars.set(lk, set); }
+  set.seen = Paint.frame; return set;
+}
+/* No bake left this frame: the closest frame already painted (same facing, walking or not, and step; else same
+   facing and walking or not), so the look stays the storybook one instead of the plain drawing for a frame. */
+function nearFrame(set, f, R) {
+  const [face, mv, ph] = f.fk.split('|');
+  let near = null;
+  for (const [k, sp] of set.frames) {
+    if (sp.R !== R) continue;
+    const p = k.split('|');
+    if (p[0] !== face || p[1] !== mv) continue;
+    if (p[2] === ph) return sp;
+    near = near || sp;
+  }
+  return near;
+}
+function paintHero(c, L, o) {
+  if (!paintOn()) { drawHero(c, L, o); return; }
+  const t = o.t || 0, mv = o.moving ? 1 : 0, face = o.face || 1, npc = !o.squash;
+  const f = heroFrameOf(npc, t, mv, face, o.atk, o.expr, o.pose), R = Math.round(Paint.R * o.s * 4) / 4, set = lookSet(L, npc);
+  let sp = set.frames.get(f.fk);
+  if (!sp || sp.R !== R) {
+    if (Paint.budget > 0) sp = bakeHeroFrame(L, set, f, R);
+    else if (!sp) sp = nearFrame(set, f, R);
+    if (!sp) { Paint.fallbacks++; drawHero(c, L, o); return; }
+  }
+  const bob = mv ? Math.abs(Math.sin(t * 11)) * 1.3 : Math.sin(t * 2.2) * .5;
+  c.save(); c.translate(o.x, o.y);
+  if (!o.noShadow) castShadow(c, 0, 0, 30 * o.s);
+  c.scale(o.s, o.s);
+  if (o.fall) c.rotate(-o.fall * 1.35 * face);
+  if (o.squash) { const sq = mv ? (.5 - Math.abs(Math.cos(t * 11))) * .06 : Math.sin(t * 2.2) * .012; c.scale(1 - sq * .6, 1 + sq); }
+  c.translate(0, -bob);
+  if (o.blink && Math.floor(t * 20) % 2) c.globalAlpha = .45;
+  if (L.aura !== 'none') { c.save(); c.scale(face, 1); drawAura(c, L.aura, t, 0); c.restore(); }
+  const B = HERO_BOX; c.drawImage(sp.c, B.x0, B.y0, B.x1 - B.x0, B.y1 - B.y0);
+  if (L.aura !== 'none') { c.save(); c.scale(face, 1); drawAura(c, L.aura, t, 1); c.restore(); }
+  c.restore(); Paint.layers.chars++;
+}
+/* Spare bakes go to the player's own frames (walk, breath, attack, both facings; the city's «happy» face, then the
+   fight's «grit» face), so a first fight finds them ready. */
+function paintPrewarm() {
+  if (!paintOn() || Paint.budget <= 0 || G.mode !== 'city' || !G.S) return;
+  const L = G.S.look, set = lookSet(L, false), R = Math.round(Paint.R * 4) / 4;
+  for (const expr of ['happy', 'grit']) for (const face of [1, -1]) {
+    const want = [];
+    for (let i = 0; i < 10; i++) want.push([1, (i + .5) / 10 * TAU / 11, 0]);
+    for (let i = 0; i < 6; i++) want.push([0, (i + .5) / 6 * IDLE_LOOP, 0]);
+    for (let k = 1; k <= 6; k++) { want.push([0, 0, k / 6]); want.push([1, 0, k / 6]); }
+    for (const [mv, t, atk] of want) {
+      const f = heroFrameOf(false, t, mv, face, atk, expr, null), sp = set.frames.get(f.fk);
+      if (!sp || sp.R !== R) { bakeHeroFrame(L, set, f, R); return; }
+    }
+  }
+}
+/* Houses: one sprite per house (the town never changes), the windows catch the light, the walls get the paper grain. */
+function paintBuilding(c, b) {
+  if (!paintOn()) { drawBuilding(c, b); return; }
+  let sp = Paint.builds.get(b);
+  if (!sp || sp.mood !== Paint.mood) {
+    if (Paint.budget > 0) {
+      Paint.budget--; Paint.bakes++; const b0 = performance.now();
+      const R = Paint.R, tall = b.style === 'chapel' || b.style === 'clock' || b.style === 'minaret' ? 38 : 4;
+      const x0 = b.x - 8, y0 = Math.min(b.y - b.wh * .55, b.y + b.h - b.wh) - tall, x1 = b.x + b.w * 1.42 + 14, y1 = b.y + b.h + 14;
+      const cnv = paintCanvas((x1 - x0) * R, (y1 - y0) * R), x = cnv.getContext('2d');
+      x.setTransform(R, 0, 0, R, -x0 * R, -y0 * R); x.lineCap = 'round'; x.lineJoin = 'round';
+      drawBuilding(x, b, true);
+      const wy = b.y + b.h - b.wh + 8; x.strokeStyle = 'rgba(255,255,255,.55)'; x.lineWidth = 1.2; // glass highlights
+      windowXs(b).forEach(wx => { x.beginPath(); x.moveTo(wx + 2, wy + 7); x.lineTo(wx + 6, wy + 2); x.stroke(); });
+      finish(cnv, Paint.P, R, Paint.P.grain);
+      x.setTransform(R, 0, 0, R, -x0 * R, -y0 * R); x.globalCompositeOperation = 'destination-over'; // its cast shadow, under it
+      castShadow(x, b.x + b.w / 2 + 6, b.y + b.h + 2, b.w * 1.15, 1.1); x.globalCompositeOperation = 'source-over'; Paint.bakeMs += performance.now() - b0;
+      sp = { c: cnv, x0, y0, w: x1 - x0, h: y1 - y0, mood: Paint.mood }; Paint.builds.set(b, sp);
+    } else if (!sp) { Paint.fallbacks++; drawBuilding(c, b); return; }
+  }
+  c.drawImage(sp.c, sp.x0, sp.y0, sp.w, sp.h); Paint.layers.builds++; Paint.layers.bm[sp.mood] = (Paint.layers.bm[sp.mood] || 0) + 1;
+}
+/* Sparkles (defeated monsters, hits, food): additive glow + a bright four-point star, one sprite per colour. */
+const SparkArt = new Map();
+function sparkSprite(col) {
+  let s = SparkArt.get(col); if (s) return s;
+  s = paintCanvas(64, 64); const x = s.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, rgbaOf(col, .7)); g.addColorStop(.35, rgbaOf(col, .22)); g.addColorStop(1, rgbaOf(col, 0)); x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  x.fillStyle = hexMix(col, '#ffffff', .6); star(x, 32, 32, 26, 3.4, 4); x.fill(); x.fillStyle = '#ffffff'; circ(x, 32, 32, 3.2); x.fill();
+  SparkArt.set(col, s); return s;
+}
+/* Layer 4: leaves overhanging the screen's left and right edges, 1.7x the camera (explore only: never over a fight). */
+function foreLayer(z) {
+  if (!paintOn() || G.fight || G.mode !== 'city') return;
+  const P = Paint.P;
+  if (!Paint.fore || Paint.fore.mood !== Paint.mood) {
+    const c = paintCanvas(220, 180), x = c.getContext('2d'), r = seeded(71);
+    for (let i = 0; i < 46; i++) {
+      const a = r() * TAU, d = r() * 70, lx = 110 + Math.cos(a) * d * 1.2, ly = 90 + Math.sin(a) * d * .9, s = 10 + r() * 14;
+      x.save(); x.translate(lx, ly); x.rotate(r() * TAU); x.fillStyle = P.leaf[Math.floor(r() * 3)];
+      x.beginPath(); x.moveTo(-s, 0); x.quadraticCurveTo(0, -s * .55, s, 0); x.quadraticCurveTo(0, s * .55, -s, 0); x.fill(); x.restore();
+    }
+    Paint.fore = { c, mood: Paint.mood }; Paint.foreBuilds++;
+  }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const md = (a, b) => ((a % b) + b) % b, w = Math.min(260, CW * .3), h = w * 180 / 220, span = CH + h * 2;
+  ctx.globalAlpha = Sky.dark > .5 ? .7 : .85;
+  [[-w * .58, 140], [CW - w * .42, 900]].forEach(([fx, off]) => {
+    const y = md(off - G.cam.y * z * 1.7, span) - h; ctx.drawImage(Paint.fore.c, fx, y, w, h); Paint.layers.fore++;
+  });
+  ctx.globalAlpha = 1;
+}
+/* The vignette rides on the hour's tint (nightPass): the same full-screen fill, as a radial gradient from the tint in
+   the middle to a deeper tint at the edges, so it costs no extra pass (separate vignette strips or a full-screen
+   grain image cost a fifth to a third of the frame rate in software drawing). A gradient still fills slower than a
+   plain colour, so it is drawn only while frames stay fast (Paint.vigOn, from watchFrames). By day there is no tint and no vignette;
+   the paper grain lives in the house and crown sprites. */
+function vignetteFill(tint, k) {
+  const m = /rgba\((\d+),(\d+),(\d+),([\d.]+)\)/.exec(tint); if (!m) return tint;
+  const W = cv.width, H = cv.height, a = +m[4], e = Math.min(1, a + Paint.P.vig * k), d = v => Math.round(v * (1 - .35 * k));
+  const g = ctx.createRadialGradient(W / 2, H * .46, Math.min(W, H) * .32, W / 2, H * .46, Math.max(W, H) * .75);
+  g.addColorStop(0, tint); g.addColorStop(1, `rgba(${d(+m[1])},${d(+m[2])},${d(+m[3])},${e.toFixed(3)})`);
+  Paint.layers.post++; return g;
+}
 /* A neon tube: dim "off" colour by day; lit core + halo (a wide translucent stroke) at night. */
 function neonPath(c, path, col, on, w) {
   const hex = NEON[col], off = hexMix(hex, '#5C5574', .55);
@@ -1509,7 +1738,8 @@ function nightPass(c, v, z, t) {
   const k = Math.max(Sky.dark, Sky.warm * .8), inV = (x, y, m) => x > v.x0 - m && x < v.x1 + m && y > v.y0 - m && y < v.y1 + m;
   if (k > .01) {
     c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
-    c.fillStyle = tintFill(hexMix('#ffffff', hexMix(Sky.mid, '#ffffff', .42), k)); c.fillRect(0, 0, cv.width, cv.height);
+    const tint = tintFill(hexMix('#ffffff', hexMix(Sky.mid, '#ffffff', .42), k));
+    c.fillStyle = paintOn() && Paint.vigOn ? vignetteFill(tint, k) : tint; c.fillRect(0, 0, cv.width, cv.height);
     if (Sky.warm > .02) { // dawn/sunset glow across the screen (a second full-screen pass only while it shows)
       const g = c.createLinearGradient(0, 0, 0, cv.height); g.addColorStop(0, Sky.top + alphaHex(.2 * Sky.warm)); g.addColorStop(1, Sky.hor + alphaHex(.16 * Sky.warm));
       c.fillStyle = g; c.fillRect(0, 0, cv.width, cv.height);
@@ -1681,9 +1911,9 @@ function drawFountain(c, t) {
   for (let i = 0; i < 6; i++) { const a = i / 6 * TAU + t * 1.5, h = 6 + Math.abs(Math.sin(t * 3 + i)) * 6; circ(c, F.x + Math.cos(a) * 9, F.y - 22 - h * .3 + Math.sin(a) * 3, 2); c.fill(); }
 }
 
-function drawBuilding(c, b) {
+function drawBuilding(c, b, noShadow) {
   const { x, y, w, h, wh } = b;
-  c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x + 6, y + h - 4, w, 10);
+  if (!noShadow) { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x + 6, y + h - 4, w, 10); } // paintBuilding: a soft cast shadow
   if (b.style === 'minaret') {
     c.fillStyle = '#f3efe6'; c.fillRect(x, y + h - wh, w, wh); c.strokeStyle = INK; c.lineWidth = 1.4; c.strokeRect(x, y + h - wh, w, wh); c.fillStyle = '#d9d3c6'; c.fillRect(x - 4, y + h - wh * .72, w + 8, 6);
     c.fillStyle = '#9aa6b2'; c.beginPath(); c.moveTo(x - 2, y + h - wh); c.lineTo(x + w / 2, y + h - wh - 34); c.lineTo(x + w + 2, y + h - wh); c.closePath(); c.fill(); c.stroke(); return;
@@ -1728,7 +1958,7 @@ function drawWall(c, w) {
 }
 function drawPalm(c, tr, t) {
   const sway = Math.sin(t * 1.1 + tr.x) * 2.2, top = tr.y - 46, tx = tr.x + 8 + sway;
-  c.fillStyle = 'rgba(0,0,0,.16)'; ell(c, tr.x + 10, tr.y + 2, 20, 6); c.fill();
+  if (paintOn()) castShadow(c, tr.x + 8, tr.y + 2, 44); else { c.fillStyle = 'rgba(0,0,0,.16)'; ell(c, tr.x + 10, tr.y + 2, 20, 6); c.fill(); }
   c.lineCap = 'round'; c.beginPath(); c.moveTo(tr.x, tr.y); c.quadraticCurveTo(tr.x - 2, tr.y - 26, tx, top); c.strokeStyle = INK; c.lineWidth = 7.4; c.stroke(); c.strokeStyle = '#a77b4f'; c.lineWidth = 5; c.stroke();
   c.strokeStyle = 'rgba(80,50,30,.35)'; c.lineWidth = 1; for (let k = 1; k < 5; k++) { const yy = tr.y - k * 9; c.beginPath(); c.moveTo(tr.x - 2.5 + k, yy); c.lineTo(tr.x + 2.5 + k, yy - 1); c.stroke(); }
   c.lineCap = 'round';
@@ -1741,7 +1971,7 @@ function drawPalm(c, tr, t) {
 }
 function drawTree(c, tr, t) {
   if (tr.palm) { drawPalm(c, tr, t); return; }
-  c.fillStyle = 'rgba(0,0,0,.18)'; ell(c, tr.x + 6, tr.y + 2, tr.r * .9, tr.r * .35); c.fill();
+  if (paintOn()) castShadow(c, tr.x + 4, tr.y + 2, tr.r * 2.1); else { c.fillStyle = 'rgba(0,0,0,.18)'; ell(c, tr.x + 6, tr.y + 2, tr.r * .9, tr.r * .35); c.fill(); }
   c.fillStyle = '#7b5a3a'; rr(c, tr.x - 4, tr.y - 22, 8, 24, 3); c.fill();
   // the pre-drawn crown at its swayed place (drawn at the camera's target scale, so about 1:1 on screen)
   const hue = Math.floor(tr.hue * 3), sway = Math.sin(t * 1.2 + tr.x) * 1.5, L = (G.cam.zt || G.cam.zoom) * DPR, sp = treeSprite(Math.round(tr.r), hue, L);
@@ -1767,6 +1997,7 @@ function treeSprite(r, hue, a) {
   const ox = r * 1.25 + 4, oy = 30 + r * 1.4 + 4, w = r * 2.5 + 8, h = oy - 18 + r * .6;
   s = document.createElement('canvas'); s.width = Math.ceil(w * a); s.height = Math.ceil(h * a); s.ox = ox; s.oy = oy;
   const x = s.getContext('2d'); x.setTransform(a, 0, 0, a, 0, 0); drawCrown(x, ox, oy, r, hue);
+  if (paintOn()) finish(s, Paint.P, a, .06); // storybook light + paper grain on the crown (cleared with TreeArt on a mood change)
   TreeArt.map.set(key, s); return s;
 }
 function drawSign(c, x, y, text) {
@@ -2157,7 +2388,17 @@ function updateHero(dt) {
   }
   if (G.portal && !G.portal.found && dist(h.x, h.y, G.portal.x, G.portal.y) < 260) { G.portal.found = true; toast('Βρήκες τη μαγική πύλη!', '#ff9bf0'); sfx('portal'); }
 }
-function boat(to) { const h = G.hero; sfx('splash'); G.fade = { t: 0, dur: .7, mid: () => { h.x = to.x; h.y = to.y; } }; }
+function boat(to) { const h = G.hero; sfx('splash'); G.fade = { t: 0, dur: .7, mid: () => { const p = boatLanding(to); h.x = p.x; h.y = p.y; } }; }
+/* KM-BOAT: the town dock itself counts as lake for the hero (the lake ellipse widened by 12 px), so landing on it froze
+   the hero (every step blocked). Land on the nearest point the hero can stand on (rings of 4 px around the dock). */
+function boatLanding(p) {
+  if (!blocked(p.x, p.y, 12)) return p;
+  for (let d = 4; d <= 120; d += 4) for (let k = 0; k < 16; k++) {
+    const a = k / 16 * TAU, x = p.x + Math.cos(a) * d, y = p.y + Math.sin(a) * d;
+    if (!blocked(x, y, 12)) return { x, y };
+  }
+  return p;
+}
 function interact() { if (G.mode === 'city' && G.prompt && !G.cine && !G.dead) G.prompt.act(); }
 function enterPortal() {
   sfx('portal'); music(null);
@@ -2201,6 +2442,7 @@ let DPR = 1, CW = 800, CH = 600, touchUI = false;
 function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1); CW = window.innerWidth; CH = window.innerHeight;
   cv.width = Math.round(CW * DPR); cv.height = Math.round(CH * DPR);
+  paintScale();
   checkRotate();
 }
 function viewRect(z) { return { x0: G.cam.x - CW / 2 / z, y0: G.cam.y - CH / 2 / z, x1: G.cam.x + CW / 2 / z, y1: G.cam.y + CH / 2 / z }; }
@@ -2219,6 +2461,7 @@ function renderWorld(dt) {
   const amp = G.shake > 0 && !calm() && !Settings.lowFx ? (G.shake > .3 ? 3 : 2) : 0, sx = amp ? rnd(-amp, amp) : 0, sy = amp ? rnd(-amp, amp) : 0;
   ctx.setTransform(DPR * z, 0, 0, DPR * z, DPR * (CW / 2 - G.cam.x * z + sx), DPR * (CH / 2 - G.cam.y * z + sy));
   const v = viewRect(z), inV = (x, y, m) => x > v.x0 - m && x < v.x1 + m && y > v.y0 - m && y < v.y1 + m;
+  paintFrame();
   drawGround(ctx, v, t);
   const f = G.fight;
   // y-sorted scene
@@ -2241,10 +2484,10 @@ function renderWorld(dt) {
   for (const it of L) {
     const o = it[2];
     switch (it[1]) {
-      case 0: drawBuilding(ctx, o); break;
+      case 0: paintBuilding(ctx, o); break;
       case 1: drawWall(ctx, o); break;
       case 2: drawTree(ctx, o, t); break;
-      case 3: drawHero(ctx, o.look, { x: o.x, y: o.y, s: o.s, face: o.face, t: o.t, moving: o.moving }); break;
+      case 3: paintHero(ctx, o.look, { x: o.x, y: o.y, s: o.s, face: o.face, t: o.t, moving: o.moving }); break;
       case 4: drawAnimal(ctx, o, t); break;
       case 5: drawCar(ctx, o); break;
       case 6: drawFood(ctx, o, t); break;
@@ -2272,11 +2515,13 @@ function renderWorld(dt) {
   G.proj.forEach(p => { if (inV(p.x, p.y, 40)) drawProj(ctx, p, t); });
   G.fx.forEach(e => drawFx(ctx, e, z));
   highLayer(adt, z, G.mode === 'title');
+  foreLayer(z);
+  paintPrewarm();
 }
 function drawPlayer(c, h, t) {
   const L = G.S.look, pose = G.cine && G.cine.kind === 'win' ? 'victory' : null;
   if (h.spin > 0) { c.save(); c.globalAlpha = .5; c.strokeStyle = '#fff3a8'; c.lineWidth = 6; c.beginPath(); c.arc(h.x, h.y - 25, 50, t * 20, t * 20 + 4); c.stroke(); c.restore(); }
-  drawHero(c, L, { x: h.x, y: h.y, s: 1, face: h.spin > 0 ? (Math.floor(t * 20) % 2 ? 1 : -1) : h.face, t: h.t, moving: h.moving && !G.dead, atk: h.atk, expr: G.dead ? 'ouch' : h.expr, fall: h.fall, blink: h.inv > 0 && !G.dead, pose, squash: true });
+  paintHero(c, L, { x: h.x, y: h.y, s: 1, face: h.spin > 0 ? (Math.floor(t * 20) % 2 ? 1 : -1) : h.face, t: h.t, moving: h.moving && !G.dead, atk: h.atk, expr: G.dead ? 'ouch' : h.expr, fall: h.fall, blink: h.inv > 0 && !G.dead, pose, squash: true });
   if (h.shield > 0) { c.save(); c.globalAlpha = .28 + Math.sin(t * 12) * .08; c.fillStyle = '#9fe0ff'; ell(c, h.x, h.y - 30, 30, 38); c.fill(); c.globalAlpha = .8; c.strokeStyle = '#e8fbff'; c.lineWidth = 2; ell(c, h.x, h.y - 30, 30, 38); c.stroke(); c.restore(); }
   if (h.hurt > 0) { c.save(); c.globalAlpha = h.hurt; c.fillStyle = 'rgba(255,90,80,.35)'; ell(c, h.x, h.y - 30, 24, 34); c.fill(); c.restore(); }
 }
@@ -2298,7 +2543,9 @@ function drawFx(c, e, z) {
   const p = e.t / e.dur;
   c.save();
   switch (e.kind) {
-    case 'spark': c.globalAlpha = 1 - p; c.fillStyle = e.col; star(c, e.x, e.y, e.r * 1.4, e.r * .5, 4); c.fill(); break;
+    case 'spark':
+      if (paintOn() && /^#[0-9a-f]{6}$/i.test(e.col)) { c.globalCompositeOperation = 'lighter'; c.globalAlpha = 1 - p * p; const r = e.r * (3.2 - p * 1.2); c.drawImage(sparkSprite(e.col), e.x - r, e.y - r, r * 2, r * 2); if (Paint.layers.sparks != null) Paint.layers.sparks++; break; }
+      c.globalAlpha = 1 - p; c.fillStyle = e.col; star(c, e.x, e.y, e.r * 1.4, e.r * .5, 4); c.fill(); break;
     case 'text': c.globalAlpha = 1 - p * p; c.font = `700 ${20 / z}px Comfortaa, sans-serif`; c.textAlign = 'center'; c.lineWidth = 4 / z; c.strokeStyle = 'rgba(27,20,48,.8)'; c.strokeText(e.text, e.x, e.y); c.fillStyle = e.col; c.fillText(e.text, e.x, e.y); break;
     case 'ring': c.globalAlpha = 1 - p; c.strokeStyle = e.col; c.lineWidth = 6; circ(c, e.x, e.y, e.r * (.3 + p * .7)); c.stroke(); break;
     case 'slash': c.globalAlpha = 1 - p; c.strokeStyle = e.col; c.lineWidth = 5; c.lineCap = 'round'; c.beginPath(); const a0 = e.face > 0 ? -1.3 : Math.PI + 1.3; c.arc(e.x - e.face * 14, e.y, 26, a0 + (e.face > 0 ? p * .6 : -p * .6), a0 + (e.face > 0 ? 2.4 : -2.4), e.face < 0); c.stroke(); break;
@@ -3108,6 +3355,9 @@ const Perf = { sum: 0, n: 0, slow: 0 };
 function watchFrames(ms) {
   if (G.mode !== 'city' || G.paused || document.hidden) { Perf.slow = 0; return; }
   Perf.sum += ms; Perf.n++;
+  // the night vignette (a full-screen gradient) only while frames keep up: back on under 17.5 ms on average (a 60 Hz
+  // screen runs at 16.7), off over 20 ms
+  Paint.ema = Paint.ema ? lerp(Paint.ema, ms, .05) : ms; if (Paint.ema > 20) Paint.vigOn = false; else if (Paint.ema < 17.5) Paint.vigOn = true;
   if (Settings.lowFx || Settings.autoLowFx) return;
   Perf.slow = ms > CONFIG.slowFrameMs ? Perf.slow + ms / 1000 : 0;
   if (Perf.slow > CONFIG.slowFrameSec) { setLowFx(true, true); toast('Λιγότερα εφέ: άναψαν μόνα τους, για να τρέχει πιο γρήγορα', '#6fe3c1'); }
@@ -3133,6 +3383,14 @@ if (TEST) window.__kmDebug = () => ({
   // in the last frame, HUD icon cache, scene fade
   gfx: { grass: Ground.marks, crowns: TreeArt.map.size, amb: Amb.list.length, kinds: Amb.list.reduce((o, a) => (o[a.k] = (o[a.k] || 0) + 1, o), {}),
     drift: Amb.drift, high: Amb.high, shadows: Amb.shadows, icons: HudArt.icons.size, xfade: Xfade.t < Xfade.dur, ambientMax: CONFIG.ambientMax },
+  // storybook paint: mood + its tokens, sprite scale, the cached looks (the player's frames), houses and their moods,
+  // bakes so far (+ their ms), live fallbacks, what the last world frame drew per layer (post = the vignette, bm = the
+  // moods of the houses it drew, sparks = sparkle sprites), how often
+  // the leaf layer was painted
+  paint: { mood: Paint.mood, P: Paint.P, R: Paint.R, looks: [...Paint.chars.keys()], player: Paint.player,
+    playerFrames: Paint.chars.has(Paint.player) ? Paint.chars.get(Paint.player).frames.size : 0,
+    builds: Paint.builds.size, buildMoods: [...new Set([...Paint.builds.values()].map(b => b.mood))],
+    bakes: Paint.bakes, bakeMs: Math.round(Paint.bakeMs), fallbacks: Paint.fallbacks, layers: Paint.layers, foreBuilds: Paint.foreBuilds, vigOn: Paint.vigOn },
 });
 function boot() {
   buildWorld(); heroInit(); spawnLife(); resize();
