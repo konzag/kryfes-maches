@@ -10,8 +10,10 @@
     overlay, rim light, varied ink outline; houses also get paper grain, glass highlights and their soft cast shadow)
     and copied every frame. People: frames per look (`lookKey`), facing, walk step, breath, attack step, expression and
     pose; bob, squash, fall, blink, aura and shadow stay live. The player's old look is dropped when the wardrobe
-    changes it; the player's frame set (56) is pre-baked in spare frames. At most one bake per frame, live vector
-    fallback meanwhile. Houses and tree crowns are repainted per mood; people keep the day finish under the hour's tint.
+    changes it; the player's frame set (112: the city's «happy» and the fight's «grit» face) is pre-baked in spare
+    frames. At most one bake per frame, and only every third frame while frames run over 20 ms; meanwhile the
+    nearest painted frame, else the live vector drawing. Sprites are baked at up to 2 px per world unit (at 3 a
+    tablet held ~70 MB of sprites after a minute; now ~37 MB). Houses and tree crowns are repainted per mood; people keep the day finish under the hour's tint.
   - Soft cast shadows along the key light (`castShadow`), sparkle sprites with additive glow (`sparkSprite`), a
     foreground leaf layer at 1.7x the camera (`foreLayer`, explore only), a night vignette carried by the hour's tint
     fill (`vignetteFill`, only while frames stay under ~17.5 ms on average).
