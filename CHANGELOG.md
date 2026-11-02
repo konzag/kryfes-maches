@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- GAME-STANDARD v1.3 §5a (L1-34): every slot gets the `hub` object (`schema`, `completed`, `completedAt`,
+  `milestones` = `bosses-1`..`bosses-5`), rebuilt at every save from `finished` and `bosses`, for the games-hub badge
+  «Ολοκλήρωσες». Old slots get it at the next save (already finished: completed on the upgrade day); a malformed object
+  is cleaned; `completedAt` never changes. Key and SCHEMA 1 unchanged. New `tests/hub-progress.spec.ts`; README
+  «Αποθήκευση» + «Badges», KM-66.
 - GAMES-GFX storybook look (art direction v1, owner «ναι» 2026-10-27), KM-62..KM-64:
   - `PALETTE` (day / sunset / night tokens: key, shade, rim, ink, shadow length, vignette, grain, leaves); the mood
     follows the game clock (`moodOf()` from `Sky`).
