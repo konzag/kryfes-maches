@@ -198,7 +198,7 @@ test.describe('layers and motion (1180x820)', () => {
     const o = JSON.parse(fixture), n = JSON.parse(after!);
     expect(n.v).toBe(o.v);
     expect(Object.keys(n).sort()).toEqual(Object.keys(o).sort());
-    expect(Object.keys(n.slots[0]).sort()).toEqual(Object.keys(o.slots[0]).sort());
+    expect(Object.keys(n.slots[0]).sort()).toEqual([...Object.keys(o.slots[0]), 'hub'].sort()); // + GAME-STANDARD §5a, additive
     expect(n.slots[0].name).toBe(o.slots[0].name);
     expect(n.slots[0].look).toEqual(o.slots[0].look);
     expect(problems).toEqual([]);

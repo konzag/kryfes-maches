@@ -183,7 +183,7 @@ test('the served page and the city before boss 5 show no secret name; the fight 
   const old = JSON.parse(fixture), now = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), SAVE_KEY);
   expect(Object.keys(now).sort()).toEqual(Object.keys(old).sort());
   expect(now.v).toBe(old.v);
-  expect(Object.keys(now.slots[0]).sort()).toEqual(Object.keys(old.slots[0]).sort());
+  expect(Object.keys(now.slots[0]).sort()).toEqual([...Object.keys(old.slots[0]), 'hub'].sort()); // + GAME-STANDARD §5a, additive
   for (const k of ['name', 'gender', 'look', 'bosses', 'minis', 'family', 'seed', 'created', 'finished']) expect(now.slots[0][k], k).toEqual(old.slots[0][k]);
   expect(problems).toEqual([]);
 });
