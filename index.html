@@ -4,9 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Κρυφές Μάχες</title>
+<meta name="description" content="Κρυφές Μάχες: ντύσε τον ήρωά σου, ψάξε στην πόλη με τη λίμνη τα κρυμμένα τέρατα και άνοιξε τη μαγική πύλη για το σπίτι.">
+<meta name="robots" content="noindex,nofollow">
 <!-- Η γραμματοσειρά έρχεται από το hub (Comfortaa). Κανένα CDN, κανένα Google Fonts (GAME-STANDARD §4). -->
 <link rel="stylesheet" href="/static/fonts/comfortaa.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E"> <!-- nosemgrep: html.security.audit.missing-integrity.missing-integrity (a data: URI, nothing is fetched) -->
 <style>
 /* Layout: full-bleed canvas city; storybook panels dock over it; HUD buttons hug the safe-area corners.
    The shell (menus, screens, buttons) follows the device theme or the remembered toggle: dark "dusk" or light "pastel".
@@ -2047,8 +2049,26 @@ function newSave(name, gender) {
   return { name, gender, look: defaultLook(gender), bosses: [], minis: [], food: 2, finished: false, family: makeFamily(),
     seed: Math.floor(Math.random() * 1e9), seenUnlock: 0, playMs: 0, created: Date.now(), saved: Date.now() };
 }
+/* GAME-STANDARD v1.3 §5a: every slot (= the level B `data`) has a `hub` object with ONLY schema, completed,
+   completedAt and milestones (`bosses-<n>` = n monsters beaten). games-hub reads it for its badges; the game never
+   calls the hub for it. Built again at every save, so an old slot gets it (and its completion) at the next save. */
+const HUB_ID = /^[a-z0-9-]{1,32}$/, HUB_DATE = /^\d{4}-\d{2}-\d{2}$/, HUB_MAX = 50;
+function today() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+// an old or broken hub object: keep what is valid, nothing else
+function hubOf(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {}, completed = r.completed === true, list = Array.isArray(r.milestones) ? r.milestones : [];
+  return { schema: 1, completed, completedAt: !completed ? null : HUB_DATE.test(r.completedAt) ? r.completedAt : today(),
+    milestones: [...new Set(list.filter(m => typeof m === 'string' && HUB_ID.test(m)))].slice(0, HUB_MAX) };
+}
+function hubFor(S) {
+  const h = hubOf(S.hub);
+  for (let n = 1; n <= Math.min(S.bosses.length, 5); n++) { const id = 'bosses-' + n; if (!h.milestones.includes(id) && h.milestones.length < HUB_MAX) h.milestones.push(id); }
+  if (S.finished === true && !h.completed) { h.completed = true; h.completedAt = today(); }
+  return h;
+}
 function saveGame(showToast) {
   if (!G.S || G.slot < 0) return;
+  G.S.hub = hubFor(G.S);
   const d = Store.read(), owner = G.owner || 'local'; G.S.saved = Date.now();
   Store.slots(d, owner)[G.slot] = JSON.parse(JSON.stringify(G.S)); Store.markDirty(d, owner, G.slot);
   const ok = Store.write(d);
