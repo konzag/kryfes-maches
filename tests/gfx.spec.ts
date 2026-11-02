@@ -238,7 +238,7 @@ test('save written by today\'s main (fixture) loads unchanged and keeps its form
   expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
   expect(after.v).toBe(before.v);
   const a = after.slots[0], b = before.slots[0];
-  expect(Object.keys(a).sort()).toEqual(Object.keys(b).sort());
+  expect(Object.keys(a).sort()).toEqual([...Object.keys(b), 'hub'].sort()); // + GAME-STANDARD §5a, additive
   for (const k of ['name', 'gender', 'look', 'bosses', 'minis', 'family', 'seed', 'created', 'finished']) expect(a[k], k).toEqual(b[k]);
   expect(a.playMs).toBeGreaterThan(b.playMs);
   expect(problems).toEqual([]);
