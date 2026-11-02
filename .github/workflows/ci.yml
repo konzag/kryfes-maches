@@ -47,7 +47,11 @@ jobs:
       - name: Test count >= floor
         run: bash tools/test-count-check.sh
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        # OS packages: preinstalled on the homelab runner (homelab-scripts vm/runner/ci-packages.txt),
+        # no apt there; only GitHub-hosted runners install them.
+        run: |
+          npx playwright install chromium
+          if [ "$RUNNER_ENVIRONMENT" = "github-hosted" ]; then npx playwright install-deps chromium; fi
       - name: Playwright smoke (keyboard + touch, 0 console errors, hub CSP)
         run: npx playwright test
       - name: Upload Playwright report
