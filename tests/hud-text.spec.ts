@@ -41,6 +41,11 @@ test('hudStroke: a dark fill gets a light or no outline, a light fill keeps the 
   // the width follows the size
   const big = await page.evaluate(() => hudStroke('#fff4dc', 30));
   expect(big.lw).toBeGreaterThan(light.lw);
+  // short hex and rgb(a) parse too; every other HUD colour of the game is light and keeps the dark outline
+  const outline = await page.evaluate(() => ['#000', 'rgba(27,20,48,.9)', '#fff', '#ffc94a', '#c9b5ff', '#c9bde6', '#ffffff']
+    .map((c) => hudStroke(c, 16).col));
+  expect(outline.slice(0, 2)).toEqual([dark.col, dark.col]);
+  expect(outline.slice(2)).toEqual(Array(5).fill(light.col));
 });
 
 interface Legibility { ink: number; gap: number; inkPx: number; gapPx: number }
