@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+- HUD bar labels «100/100» and «★ Space!» / «★ ΣΟΥΠΕΡ!» were smudged (owner 2026-11-08): dark text inside the dark
+  ≥3 px outline. `hudStroke(fill, size)` picks an outline that contrasts with the fill (light fill: dark ink,
+  `max(2, size/5)`; dark fill: thin light rim, `max(1, size/10)`); `TextCache` keys include it. The two bar labels
+  are 12 px (`HUD_BAR_TEXT`, was 11). New `tests/hud-text.spec.ts`; README KM-67.
+
 ### Added
 - GAME-STANDARD v1.3 §5a (L1-34): every slot gets the `hub` object (`schema`, `completed`, `completedAt`,
   `milestones` = `bosses-1`..`bosses-5`), rebuilt at every save from `finished` and `bosses`, for the games-hub badge
