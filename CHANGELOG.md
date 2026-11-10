@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- NIGHT-2 (2026-11-10): CodeQL (`.github/workflows/codeql.yml`: javascript-typescript, which reads the inline
+  script of index.html, and actions; buildless, security-extended, GitHub-hosted, actions pinned by SHA) next to
+  Semgrep + Gitleaks; `tests/codeql-workflow.spec.ts` keeps it that way. README row KM-68 for the page head and noindex.
+  The game does not change.
+
 ### Fixed
 - HUD bar labels «100/100» and «★ Space!» / «★ ΣΟΥΠΕΡ!» were smudged (owner 2026-11-08): dark text inside the dark
   ≥3 px outline. `hudStroke(fill, size)` picks an outline that contrasts with the fill (light fill: dark ink,
