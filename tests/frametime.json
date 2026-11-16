@@ -5,11 +5,13 @@
   "segments": 4,
   "p95MaxMs": 20,
   "maxGrowth": 0.1,
+  "minFrameRatio": 0.8,
+  "_minFrameRatio": "candidate frames drawn in the 10 s >= reference frames x minFrameRatio: the frame callback time misses the drawing (raster) cost, the number of frames does not (tier Α first cut: 160 -> 84 in CI).",
   "texturesMaxMs": 300,
   "absoluteGate": "only when the reference itself meets p95MaxMs on this machine; otherwise only the relative gate (candidate p95 <= reference p95 x (1 + maxGrowth))",
   "baseline": {
     "_doc": "The «before» numbers of step 1 (no GAMES-GRAPHICS change yet: both variants run the same code), recorded for the record; the gate itself uses the reference measured in the same run.",
     "local": { "machine": "owner PC (Windows, other jobs running), 2026-11-16, one run", "referenceP95Ms": 49.1, "candidateP95Ms": 38.7, "referenceMeanMs": 19.76, "candidateMeanMs": 18.48, "note": "same code in both variants: the spread is software-rendering noise" },
-    "ci": null
+    "ci": { "machine": "GitHub-hosted ubuntu-latest, PR #52 (d0305a6), 2026-11-16", "referenceP95Ms": 30.2, "candidateP95Ms": 31.2, "referenceFrames": 122, "candidateFrames": 118, "note": "same code: +3 % is the run-to-run noise; 20 ms is not met before any change, so the gate is relative (+10 %)" }
   }
 }
