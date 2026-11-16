@@ -49,7 +49,11 @@ jobs:
           npx playwright install chromium
           if [ "$RUNNER_ENVIRONMENT" = "github-hosted" ]; then npx playwright install-deps chromium; fi
       - name: Playwright smoke (keyboard + touch, 0 console errors, hub CSP)
-        run: npx playwright test
+        run: npx playwright test --grep-invert @frametime
+      # GAMES-GRAPHICS §4: the frame-time gate runs alone, so parallel tests do not disturb the measurement
+      # (thresholds in tests/frametime.json; the numbers are in the log line FRAMETIME {...}).
+      - name: Frame-time gate (CPU 4x, p95 vs the look before)
+        run: npx playwright test --grep @frametime --project=tablet --workers=1
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
