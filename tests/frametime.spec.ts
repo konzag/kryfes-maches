@@ -100,3 +100,29 @@ test('frame time with the CPU 4x slower: p95 within the GAMES-GRAPHICS budget @f
   expect(cand.length, `frames drawn: candidate vs reference ${ref.length} x ${CFG.minFrameRatio} (the drawing cost the callback time misses)`).toBeGreaterThanOrEqual(Math.floor(ref.length * CFG.minFrameRatio));
   if (absolute) expect(res.candidate.p95Ms, `p95 <= ${CFG.p95MaxMs} ms («Κανονικά»)`).toBeLessThanOrEqual(CFG.p95MaxMs);
 });
+
+// GAMES-GRAPHICS §4, tier Β: the materials are made once, the first time the ground is drawn, and cost <= texturesMaxMs
+// (tests/frametime.json) with the CPU 4x slower. GFX.texMs is the real drawing time (after a one-pixel read of each tile).
+test('materials (tier Β) are made once, within the load budget with the CPU 4x slower @frametime', async ({ page }, info) => {
+  expect(info.project.name, 'tablet project only (playwright.config.ts)').toBe('tablet');
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.addInitScript(() => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9 } }; }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  await page.goto('/');
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: CFG.cpuThrottle });
+  await page.reload();
+  const g = () => page.evaluate(() => (window as any).__kmDebug().graphics); // eslint-disable-line @typescript-eslint/no-explicit-any
+  await expect.poll(async () => (await g()).texBuilds, { timeout: 30_000 }).toBe(1);
+  await page.waitForTimeout(1000); // more frames: the tiles are not made again
+  const out = await g();
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  const line = JSON.stringify({ texMs: out.texMs, limitMs: CFG.texturesMaxMs });
+  console.log('TEXTURES ' + line);
+  info.annotations.push({ type: 'textures', description: line });
+  expect(out.b).toBe(true);
+  expect(out.texBuilds).toBe(1);
+  expect(out.texMs, `extra load time for the materials at CPU ${CFG.cpuThrottle}x`).toBeLessThanOrEqual(CFG.texturesMaxMs);
+  expect(errors).toEqual([]);
+});

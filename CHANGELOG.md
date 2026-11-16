@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- GAMES-GRAPHICS tier Β, code-made materials (L1-26 step 3): 128x128 tileable tiles (value noise that wraps) for
+  asphalt, paving stones, sand and grass, made once at the first ground draw (`matTiles`, `GFX.texMs`; ~35-40 ms at
+  CPU 4x, budget 300). Roads, parking, promenade, plaza, park, the beaches (rings only) and the island's lawn are
+  filled once with a pattern of their material over their own colour (`matFill`), instead of the flat colour. The
+  open meadow and open water keep their look: a full-screen pattern cost too much frame time in software drawing.
+  graphics.spec +2 (x2 projects), frametime.spec +1 (materials budget, @frametime); README KM-70.
+
 - GAMES-GRAPHICS tier Α, light and shadow (L1-26 step 2): the lake takes the key light (sun / sunset / moon glow on
   the far top-left water, the near bottom-right water in the shade, the island's soft shadow on the water along the
   light, the island lit from the top left); the fountain and the boats get `castShadow` like the houses. Gradients

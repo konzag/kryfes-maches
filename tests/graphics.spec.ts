@@ -95,4 +95,32 @@ test.describe('GAMES-GRAPHICS tiers', () => {
     expect((await graphics(page)).litMood).toBe(await page.evaluate(() => Paint.mood));
     expect(errors).toEqual([]);
   });
+
+  test('tier Β: asphalt, paving stones, park grass and the beach get a material instead of one flat colour', async ({ page }) => {
+    const errors = await open(page);
+    // the first avenue (above its lane line), the plaza between two joints, the park lawn, the promenade
+    const city = await ground(page, 'b', 'day', [200, 900, 1900, 800], [[300, 968, 60, 16], [1000, 1100, 20, 40], [1330, 1080, 40, 40], [2020, 1300, 40, 60]]);
+    const lake = await ground(page, 'b', 'day', LAKE_BOX, [[2620, 2003, 40, 8]]); // the beach below the lake
+    const names = ['asphalt', 'plaza', 'park', 'promenade', 'beach'];
+    [...city.off, ...lake.off].forEach((off, i) => {
+      const on = [...city.on, ...lake.on][i];
+      expect(on.sd, `${names[i]}: more detail with the material`).toBeGreaterThan(off.sd + 2);
+      expect(Math.abs(on.lum - off.lum), `${names[i]}: same colour overall`).toBeLessThan(25);
+    });
+    const g = await graphics(page);
+    expect(g.texBuilds, 'the tiles are made once').toBe(1);
+    expect(g.texMs).toBeGreaterThan(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('tier Β: the open meadow and the water keep their light look (no full-screen pattern), «Λιγότερα εφέ» keeps the materials', async ({ page }) => {
+    const errors = await open(page);
+    await page.evaluate(() => (window as any).setLowFx(true));
+    const city = await ground(page, 'b', 'day', [200, 900, 1300, 800], [[250, 1100, 60, 60], [300, 968, 60, 16]]);
+    expect(Math.abs(city.on[0].sd - city.off[0].sd), 'meadow: unchanged').toBeLessThan(0.5);
+    expect(city.on[1].sd, 'asphalt: still a material').toBeGreaterThan(city.off[1].sd + 2);
+    const lake = await ground(page, 'b', 'day', LAKE_BOX, [[2500, 1500, 60, 60]]);
+    expect(Math.abs(lake.on[0].sd - lake.off[0].sd), 'open water: unchanged').toBeLessThan(0.5);
+    expect(errors).toEqual([]);
+  });
 });

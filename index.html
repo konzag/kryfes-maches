@@ -1814,6 +1814,59 @@ function grassSprites() {
    park, parking, castle floor), each drawn only where the view is. A cache of ground tiles was measured and dropped:
    drawing a new tile cost more, while walking, than copying the tiles saved. The lake, the fountain, the docks and
    the boats follow. */
+/* Tier Β (GAMES-GRAPHICS §1): materials made with code, once, the first time the ground is drawn (no image files, no
+   network): 128x128 tileable tiles of light and dark flecks with alpha (value noise that wraps at the tile edge) for
+   asphalt, paving stones, sand and grass. Each surface (roads, parking, promenade, plaza, park, the beaches of the lake
+   and the island, the island's lawn) is filled once with a pattern of its material laid over its own colour, instead
+   of the flat colour: one fill as before. The open meadow and the open water keep their look: a pattern over the whole
+   screen cost too much frame time in software drawing (measured, tests/frametime.spec.ts). MAT_SCALE: world units
+   per tile pixel. GFX.texMs is the real drawing time of the tiles (after a one-pixel read). */
+const Mat = { tiles: null, pats: null, ctx: null };
+function matNoise(r, n) { // n x n lattice of random values, read smoothly and wrapping
+  const g = new Float32Array(n * n); for (let i = 0; i < g.length; i++) g[i] = r();
+  const sm = t => t * t * (3 - 2 * t);
+  return (x, y) => { // x, y in 0..1
+    const fx = x * n, fy = y * n, x0 = Math.floor(fx) % n, y0 = Math.floor(fy) % n, x1 = (x0 + 1) % n, y1 = (y0 + 1) % n, tx = sm(fx - Math.floor(fx)), ty = sm(fy - Math.floor(fy));
+    return lerp(lerp(g[y0 * n + x0], g[y0 * n + x1], tx), lerp(g[y1 * n + x0], g[y1 * n + x1], tx), ty);
+  };
+}
+function matTile(seed, px) { // px(r, x, y, n1, n2) -> [r, g, b, a] for each pixel
+  const N = 128, c = paintCanvas(N, N), x = c.getContext('2d'), d = x.createImageData(N, N), r = seeded(seed), lo = matNoise(r, 8), hi = matNoise(r, 32);
+  for (let y = 0; y < N; y++) for (let i = 0; i < N; i++) { const o = (y * N + i) * 4, v = px(r, i, y, lo(i / N, y / N), hi(i / N, y / N)); d.data[o] = v[0]; d.data[o + 1] = v[1]; d.data[o + 2] = v[2]; d.data[o + 3] = v[3]; }
+  x.putImageData(d, 0, 0); return c;
+}
+const fleck = (light, dark, k) => (r, i, y, a, b) => { const v = a * .6 + b * .4 - .5 + (r() - .5) * .25; return v > 0 ? [...light, Math.min(255, v * k)] : [...dark, Math.min(255, -v * k)]; };
+function matTiles() {
+  if (Mat.tiles) return Mat.tiles;
+  const t0 = performance.now();
+  Mat.tiles = {
+    grass: matTile(11, (r, i, y, a, b) => { const v = a * .55 + b * .45 - .5; if (r() < .035) return [236, 255, 196, 120]; return v > 0 ? [226, 250, 180, Math.min(255, v * 260)] : [36, 82, 30, Math.min(255, -v * 300)]; }),
+    asphalt: matTile(12, (r, i, y, a, b) => { const s = r(); if (s < .06) return [235, 230, 245, 55]; if (s < .12) return [20, 16, 34, 70]; const v = a * .7 + b * .3 - .5; return v > 0 ? [200, 196, 220, v * 120] : [18, 14, 32, -v * 150]; }),
+    paving: matTile(13, (r, i, y, a, b) => { // stones 32 x 16 in running bond, dark joints, a tone per stone
+      const row = y >> 4, sx = (i + (row & 1) * 16) & 31, sy = y & 15;
+      if (sx === 0 || sy === 0) return [92, 70, 52, 120];
+      const tone = ((Math.imul(row + 7, 2654435761) ^ Math.imul(((i + (row & 1) * 16) >> 5) + 3, 40503)) >>> 0) % 5;
+      const v = (tone - 2) * .09 + (b - .5) * .22; return v > 0 ? [255, 248, 228, v * 230] : [110, 84, 60, -v * 200];
+    }),
+    sand: matTile(14, fleck([255, 248, 222], [150, 116, 70], 300)),
+  };
+  for (const k in Mat.tiles) Mat.tiles[k].getContext('2d').getImageData(0, 0, 1, 1); // the drawing really done
+  GFX.texMs = +(performance.now() - t0).toFixed(1); GFX.texBuilds++;
+  return Mat.tiles;
+}
+const MAT_SCALE = { grass: 2, asphalt: .8, paving: 1, sand: 1 }; // world units per tile pixel
+/* The fill of a surface: with tier Β one pattern of the material laid over the surface's own colour (made once per
+   material and colour), so the surface costs one fill as before; without it the plain colour. */
+function matFill(c, k, base) {
+  if (!GFX.b) return base;
+  if (Mat.ctx !== c) { Mat.ctx = c; Mat.pats = {}; }
+  const key = k + base; let p = Mat.pats[key];
+  if (!p) {
+    const t = matTiles()[k], m = paintCanvas(t.width, t.height), x = m.getContext('2d'); x.fillStyle = base; x.fillRect(0, 0, m.width, m.height); x.drawImage(t, 0, 0);
+    p = Mat.pats[key] = c.createPattern(m, 'repeat'); const s = MAT_SCALE[k]; p.setTransform(new DOMMatrix([s, 0, 0, s, 0, 0]));
+  }
+  return p;
+}
 function groundStatic(c, v) {
   const hit = (x, y, w, h) => x < v.x1 + 20 && x + w > v.x0 - 20 && y < v.y1 + 20 && y + h > v.y0 - 20; // draw only what the tile shows
   c.fillStyle = '#9fd075'; c.fillRect(v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0);
@@ -1835,27 +1888,27 @@ function groundStatic(c, v) {
   }
   // roads, promenade, plaza, park, parking, castle floor
   if (hit(PROMENADE.x, PROMENADE.y, PROMENADE.w, PROMENADE.h)) {
-    c.fillStyle = '#e6d6b2'; rr(c, PROMENADE.x, PROMENADE.y, PROMENADE.w, PROMENADE.h, 30); c.fill(); c.strokeStyle = 'rgba(42,31,69,.45)'; c.lineWidth = 1.4; c.stroke();
+    c.fillStyle = matFill(c, 'paving', '#e6d6b2'); rr(c, PROMENADE.x, PROMENADE.y, PROMENADE.w, PROMENADE.h, 30); c.fill(); c.strokeStyle = 'rgba(42,31,69,.45)'; c.lineWidth = 1.4; c.stroke();
   }
   // curbs first (a light kerb with an outline), then every road on top, so the crossings stay clean
   ROADS.forEach(r => { if (r.path || !hit(r.x - 4, r.y - 4, r.w + 8, r.h + 8)) return; c.fillStyle = '#d9d0e6'; rr(c, r.x - 4, r.y - 4, r.w + 8, r.h + 8, 13); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke(); });
   ROADS.forEach(r => {
     if (!hit(r.x, r.y, r.w, r.h)) return;
-    c.fillStyle = r.path ? '#d9c08f' : '#5C5574'; rr(c, r.x, r.y, r.w, r.h, r.path ? 22 : 10); c.fill();
+    c.fillStyle = r.path ? matFill(c, 'sand', '#d9c08f') : matFill(c, 'asphalt', '#5C5574'); rr(c, r.x, r.y, r.w, r.h, r.path ? 22 : 10); c.fill();
     if (r.path) { c.strokeStyle = 'rgba(42,31,69,.4)'; c.lineWidth = 1.2; c.stroke(); }
     if (r.lanes) { c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 3; c.setLineDash([22, 18]); c.beginPath(); if (r.lanes === 'h') { c.moveTo(r.x + 10, r.y + r.h / 2); c.lineTo(r.x + r.w - 10, r.y + r.h / 2); } else { c.moveTo(r.x + r.w / 2, r.y + 10); c.lineTo(r.x + r.w / 2, r.y + r.h - 10); } c.stroke(); c.setLineDash([]); }
   });
   if (hit(PLAZA.x, PLAZA.y, PLAZA.w, PLAZA.h)) {
-    c.fillStyle = '#ead9b6'; rr(c, PLAZA.x, PLAZA.y, PLAZA.w, PLAZA.h, 18); c.fill(); c.strokeStyle = 'rgba(42,31,69,.5)'; c.lineWidth = 1.4; c.stroke();
+    c.fillStyle = matFill(c, 'paving', '#ead9b6'); rr(c, PLAZA.x, PLAZA.y, PLAZA.w, PLAZA.h, 18); c.fill(); c.strokeStyle = 'rgba(42,31,69,.5)'; c.lineWidth = 1.4; c.stroke();
     c.strokeStyle = 'rgba(160,130,90,.25)'; c.lineWidth = 1.5; for (let x = PLAZA.x + 20; x < PLAZA.x + PLAZA.w; x += 26) { c.beginPath(); c.moveTo(x, PLAZA.y + 6); c.lineTo(x, PLAZA.y + PLAZA.h - 6); c.stroke(); }
   }
   if (hit(PARK.x, PARK.y, PARK.w, PARK.h)) {
-    c.fillStyle = '#8cc566'; rr(c, PARK.x, PARK.y, PARK.w, PARK.h, 30); c.fill(); c.strokeStyle = 'rgba(70,120,50,.6)'; c.lineWidth = 3; c.stroke();
+    c.fillStyle = matFill(c, 'grass', '#8cc566'); rr(c, PARK.x, PARK.y, PARK.w, PARK.h, 30); c.fill(); c.strokeStyle = 'rgba(70,120,50,.6)'; c.lineWidth = 3; c.stroke();
     c.strokeStyle = '#e6d6b2'; c.lineWidth = 16; c.beginPath(); c.moveTo(PARK.x + 20, PARK.y + 60); c.quadraticCurveTo(PARK.x + 160, PARK.y + 260, PARK.x + PARK.w - 20, PARK.y + PARK.h - 60); c.stroke();
   }
   if (hit(PARKING.x - 4, PARKING.y - 4, PARKING.w + 8, PARKING.h + 8)) {
     c.fillStyle = '#d9d0e6'; rr(c, PARKING.x - 4, PARKING.y - 4, PARKING.w + 8, PARKING.h + 8, 15); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke();
-    c.fillStyle = '#7a7290'; rr(c, PARKING.x, PARKING.y, PARKING.w, PARKING.h, 12); c.fill();
+    c.fillStyle = matFill(c, 'asphalt', '#7a7290'); rr(c, PARKING.x, PARKING.y, PARKING.w, PARKING.h, 12); c.fill();
     c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 2; for (let x = PARKING.x + 30; x < PARKING.x + PARKING.w - 20; x += 46) { c.beginPath(); c.moveTo(x, PARKING.y + 10); c.lineTo(x, PARKING.y + 60); c.moveTo(x, PARKING.y + PARKING.h - 60); c.lineTo(x, PARKING.y + PARKING.h - 10); c.stroke(); }
   }
   if (hit(CASTLE.x, CASTLE.y, CASTLE.w, CASTLE.h)) {
@@ -1914,7 +1967,8 @@ function drawGround(c, v, t) {
     c.save(); c.beginPath(); c.rect(PROMENADE.x + PROMENADE.w, 0, WORLD.w, WORLD.h); c.clip();
   // lake: day turquoise, it takes the sky's colours at sunset and night
   const sk = Math.max(Sky.dark, Sky.warm * .7);
-  c.fillStyle = '#e9dba9'; ell(c, LAKE.x, LAKE.y, LAKE.rx + 14, LAKE.ry + 14); c.fill();
+  // the beach: only the ring the water leaves (a pattern under the whole lake would be drawn for nothing)
+  c.fillStyle = matFill(c, 'sand', '#e9dba9'); ell(c, LAKE.x, LAKE.y, LAKE.rx + 14, LAKE.ry + 14); c.ellipse(LAKE.x, LAKE.y, LAKE.rx - 2, LAKE.ry - 2, 0, 0, TAU); c.fill('evenodd');
   const w0 = hexMix('#8EDDF2', Sky.hor, sk * .55), w1 = hexMix('#3E9BCB', Sky.mid, sk * .7);
   if (GFX.a) lakeLight(c, w0, w1); // the water with its light, painted once per colour change: one copy per frame
   else {
@@ -1928,9 +1982,9 @@ function drawGround(c, v, t) {
   c.strokeStyle = INK; c.lineWidth = 1.4; ell(c, LAKE.x, LAKE.y, LAKE.rx + 14, LAKE.ry + 14); c.stroke();
   c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 2;
   for (let i = 0; i < 26; i++) { const x = LAKE.x - 380 + (i * 137) % 760, y = LAKE.y - 760 + (i * 211) % 1520; if (!inLake(x, y, 30) || dist(x, y, ISLAND.x, ISLAND.y) < ISLAND.r + 20) continue; const o = Math.sin(t * 1.5 + i) * 6; c.beginPath(); c.moveTo(x - 14 + o, y); c.quadraticCurveTo(x + o, y - 5, x + 14 + o, y); c.stroke(); }
-  c.fillStyle = '#e9dba9'; circ(c, ISLAND.x, ISLAND.y, ISLAND.r + 12); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke();
+  c.fillStyle = matFill(c, 'sand', '#e9dba9'); circ(c, ISLAND.x, ISLAND.y, ISLAND.r + 12); c.arc(ISLAND.x, ISLAND.y, ISLAND.r - 2, 0, TAU); c.fill('evenodd'); circ(c, ISLAND.x, ISLAND.y, ISLAND.r + 12); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke();
   c.save(); c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 4; c.setLineDash([20, 12]); c.lineDashOffset = calm() ? 0 : t * 5; circ(c, ISLAND.x, ISLAND.y, ISLAND.r + 18); c.stroke(); c.restore();
-  c.fillStyle = '#a7d77c'; circ(c, ISLAND.x, ISLAND.y, ISLAND.r); c.fill();
+  c.fillStyle = matFill(c, 'grass', '#a7d77c'); circ(c, ISLAND.x, ISLAND.y, ISLAND.r); c.fill();
   if (GFX.a) islandLight(c);
     c.restore();
   }
