@@ -1,5 +1,6 @@
 // GAMES-GRAPHICS (games-template docs/specs/GAMES-GRAPHICS.md), L1-26: tier Α (light and shadow) and tier Β
-// (code-made materials) in the city. The tiers are on by default («Κανονικά»); the test hook config `gfx`
+// (code-made materials) in the city. Both tiers are on by default («🎨 Γραφικά: Αυτόματα» on a fast device; the test
+// config gfxSlowMs 1e9 keeps the automatic fall-back of tests/tier.spec.ts away here); the test hook config `gfx`
 // ('base' = the look before, 'a' = tier Α only) switches them off only to compare. The pixel checks draw the ground
 // (drawGround, the same function a frame uses) into an offscreen canvas, once with a tier off and once on, and
 // compare small blocks of it, so they do not depend on the camera or on the moving life of the city.
@@ -17,7 +18,7 @@ async function open(page: Page, config: Record<string, unknown> = {}) {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.addInitScript((cfg) => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, forceHour: 12, ...cfg } }; }, config);
+  await page.addInitScript((cfg) => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, gfxSlowMs: 1e9, forceHour: 12, ...cfg } }; }, config);
   await page.goto('/');
   await expect.poll(() => page.evaluate(() => typeof (window as any).__kmDebug)).toBe('function');
   return errors;

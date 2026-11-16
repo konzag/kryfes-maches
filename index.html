@@ -284,14 +284,52 @@ const CONFIG = {
   slowFrameMs: 25,                // «Λιγότερα εφέ» switches on by itself (once) when frames stay this slow ...
   slowFrameSec: 3,                // ... for this long
   gfx: null,                      // tests only (through the test hook): 'base' = the look before GAMES-GRAPHICS, 'a' = tier Α only
+  gfxSlowMs: 20,                  // «🎨 Γραφικά: Αυτόματα»: tier Β gives way to tier Α when the median frame stays over this ...
+  gfxSlowSec: 3,                  // ... for this long (on the title screen and while playing); remembered per device
+  fakeFrameMs: null,              // tests only (through the test hook): the frame time that watch sees instead of the real one
 };
 /* Test hook: Playwright sets window.__KM_TEST__ = { config: {...} } with addInitScript before the page loads.
    Nothing a player can reach sets it (no URL parameter, no storage key). */
 const TEST = window.__KM_TEST__ || null;
 if (TEST && TEST.config) Object.assign(CONFIG, TEST.config);
-/* GAMES-GRAPHICS (games-template docs/specs/GAMES-GRAPHICS.md): tier Α light and shadow, tier Β code-made materials,
-   both on by default («Κανονικά»). Only the test hook can switch them off, to measure the look before them. */
-const GFX = { a: CONFIG.gfx !== 'base', b: CONFIG.gfx !== 'base' && CONFIG.gfx !== 'a', texMs: 0, texBuilds: 0 };
+/* GAMES-GRAPHICS (games-template docs/specs/GAMES-GRAPHICS.md): tier Α light and shadow, tier Β code-made materials.
+   The setting «🎨 Γραφικά» (owner decision 16/11, option b; same wording as magic-islands, own key `<slug>.gfx.v1`):
+   «Αυτόματα» (the default) = tier Β while the device keeps up, tier Α once the median frame stayed over
+   CONFIG.gfxSlowMs for gfxSlowSec (measured on the title screen and while playing, never while paused or hidden) and
+   from then on on this device; «Κανονικά» = always tier Α; «Πλούσια» = always tier Β. Stored as JSON
+   {"pick": "auto" | "normal" | "rich", "slow": true | false}, outside the save (the save key and format never change).
+   The test hook config `gfx` ('base' = the look before, 'a' = tier Α only) overrides all of it, to measure. */
+const GFX_KEY = CONFIG.slug + '.gfx.v1';
+/* tier:pure:start */
+/* The pure parts of the decision (tests/unit/gfx-tier.unit.mjs loads this block on its own: no DOM, no globals).
+   tierTrack: adds one frame time (ms) to the window `gaps` and drops the oldest frames that are not needed to cover
+   the last `sec` seconds; a frame of 1 s or more is a stall (tab switch, alert, GC), not play, and is skipped, as is
+   anything that is not a number. Returns the same array. tierSlow: true when the window covers `sec` seconds and its
+   median frame is over `limitMs` (the median, so a few long frames among fast ones do not count). tierOf: the tier the
+   choice gives. tierPick: the stored JSON read back; anything unknown or broken = «Αυτόματα» on a fast device. */
+function tierTrack(gaps, ms, sec) {
+  if (!(ms >= 0 && ms < 1000)) return gaps;
+  gaps.push(ms);
+  let sum = 0; for (const g of gaps) sum += g;
+  while (gaps.length > 1 && sum - gaps[0] >= sec * 1000) sum -= gaps.shift();
+  return gaps;
+}
+function tierSlow(gaps, limitMs, sec) {
+  let sum = 0; for (const g of gaps) sum += g;
+  if (sum < sec * 1000) return false;
+  const s = gaps.slice().sort((x, y) => x - y), n = s.length;
+  return (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) > limitMs;
+}
+function tierOf(pick, slow) { return pick === 'normal' ? 'a' : pick === 'rich' ? 'b' : slow ? 'a' : 'b'; }
+function tierPick(raw) {
+  let o = null; try { o = JSON.parse(raw); } catch (e) { o = null; }
+  if (!o || typeof o !== 'object' || !['auto', 'normal', 'rich'].includes(o.pick)) return { pick: 'auto', slow: false };
+  return { pick: o.pick, slow: o.slow === true };
+}
+/* tier:pure:end */
+const Tier = { pick: 'auto', slow: false, gaps: [] };
+try { Object.assign(Tier, tierPick(localStorage.getItem(GFX_KEY))); } catch (e) { /* no storage: «Αυτόματα», measured this visit */ }
+const GFX = { a: CONFIG.gfx !== 'base', b: CONFIG.gfx ? false : tierOf(Tier.pick, Tier.slow) === 'b', texMs: 0, texBuilds: 0 };
 const SAVE_KEY = 'game.' + CONFIG.slug + '.v1';
 const SOUND_KEY = 'game.' + CONFIG.slug + '.sound';
 const SETTINGS_KEY = 'game.' + CONFIG.slug + '.settings.v1'; // shell theme + effects; never inside the save
@@ -613,6 +651,7 @@ const I18N = {
     resume: '▶ Συνέχεια', save: '💾 Αποθήκευση', saved: 'Αποθηκεύτηκε ✓', noSave: 'Η συσκευή δεν κρατά αποθήκευση', goHome: '🏡 Πήγαινε σπίτι', startScreen: 'Αρχική οθόνη',
     tiredH: 'Ωχ! Κουράστηκες...', homeNow: '🏡 Πάμε σπίτι', explore: 'Συνέχισε να εξερευνάς',
     theme_auto: '🌗 Θέμα: αυτόματο', theme_light: '☀️ Θέμα: φωτεινό', theme_dark: '🌙 Θέμα: σκοτεινό', lowFx: '✨ Λιγότερα εφέ',
+    gfx: '🎨 Γραφικά: ', gfx_auto: 'Αυτόματα', gfx_normal: 'Κανονικά', gfx_rich: 'Πλούσια',
     house: 'Το σπίτι μου', random: '🎲 Τυχαίο', out: '🚪 Βγες στην πόλη', rotate: 'Γύρισε τη συσκευή οριζόντια για να παίξεις!',
     pause: 'Παύση', sound: 'Ήχος', full: 'Πλήρης οθόνη', home: 'Πίσω στα παιχνίδια',
     padA: 'Ικανότητα 1', padB: 'Ικανότητα 2', padS: 'Σούπερ', padC: 'Ασπίδα', padF: 'Φαγητό', padE: 'Μπες',
@@ -626,6 +665,7 @@ const I18N = {
     resume: '▶ Continue', save: '💾 Save', saved: 'Saved ✓', noSave: 'This device does not keep saves', goHome: '🏡 Go home', startScreen: 'Start screen',
     tiredH: 'Oh! You got tired...', homeNow: '🏡 Let\'s go home', explore: 'Keep exploring',
     theme_auto: '🌗 Theme: auto', theme_light: '☀️ Theme: light', theme_dark: '🌙 Theme: dark', lowFx: '✨ Fewer effects',
+    gfx: '🎨 Graphics: ', gfx_auto: 'Auto', gfx_normal: 'Normal', gfx_rich: 'Rich',
     house: 'My house', random: '🎲 Random', out: '🚪 Go out to the city', rotate: 'Turn the device sideways to play!',
     pause: 'Pause', sound: 'Sound', full: 'Full screen', home: 'Back to the games',
     padA: 'Ability 1', padB: 'Ability 2', padS: 'Super', padC: 'Shield', padF: 'Food', padE: 'Enter',
@@ -643,14 +683,25 @@ function nextLang() { Lang.pick = Lang.pick === 'en' ? 'el' : 'en'; try { localS
 const themeLabel = () => tr('theme_' + Settings.theme);
 function cycleTheme() { Settings.theme = { auto: 'light', light: 'dark', dark: 'auto' }[Settings.theme]; saveSettings(); applyTheme(); }
 function setLowFx(on, auto) { Settings.lowFx = on; if (auto) Settings.autoLowFx = true; saveSettings(); INK = on ? INK_OFF : INK_ON; TreeArt.map.clear(); }
-/* Theme + «Λιγότερα εφέ» buttons, on the title and pause screens. */
+/* «🎨 Γραφικά»: the label names the choice; with «Αυτόματα» also the tier it gives now, e.g. «Αυτόματα (Κανονικά)». */
+const gfxLabel = () => tr('gfx') + (Tier.pick === 'auto'
+  ? tr('gfx_auto') + ' (' + tr(tierOf(Tier.pick, Tier.slow) === 'b' ? 'gfx_rich' : 'gfx_normal') + ')' : tr('gfx_' + Tier.pick));
+function saveTier() { try { localStorage.setItem(GFX_KEY, JSON.stringify({ pick: Tier.pick, slow: Tier.slow })); } catch (e) { /* this visit only */ } }
+function applyTier() {
+  if (!CONFIG.gfx) GFX.b = tierOf(Tier.pick, Tier.slow) === 'b';
+  const b = $('bGfx'); if (b) b.textContent = gfxLabel();
+}
+/* The button cycles Αυτόματα → Κανονικά → Πλούσια → Αυτόματα; choosing «Αυτόματα» again measures this device anew. */
+function nextGfx() { Tier.pick = { auto: 'normal', normal: 'rich', rich: 'auto' }[Tier.pick]; Tier.slow = false; Tier.gaps.length = 0; saveTier(); applyTier(); }
+/* Theme + «Λιγότερα εφέ» + «🎨 Γραφικά» + language buttons, on the title and pause screens. */
 function settingsRow() {
   const th = btn(themeLabel(), () => { cycleTheme(); th.textContent = themeLabel(); }, 'ghost');
   const fxb = btn(tr('lowFx'), () => { setLowFx(!Settings.lowFx); fxb.setAttribute('aria-pressed', String(Settings.lowFx)); }, 'ghost');
+  const gb = btn(gfxLabel(), nextGfx, 'ghost');
   const lb = btn(tr('langBtn'), () => { nextLang(); if (curScreen) showScreen(curScreen); const b = $('bLang'); if (b) b.focus(); }, 'ghost');
-  th.id = 'bTheme'; fxb.id = 'bLowFx'; lb.id = 'bLang'; fxb.setAttribute('aria-pressed', String(Settings.lowFx));
+  th.id = 'bTheme'; fxb.id = 'bLowFx'; gb.id = 'bGfx'; lb.id = 'bLang'; fxb.setAttribute('aria-pressed', String(Settings.lowFx));
   lb.setAttribute('aria-label', tr('langLabel')); lb.lang = Lang.pick === 'en' ? 'el' : 'en';
-  return el('div', { class: 'row settings' }, [th, fxb, lb]);
+  return el('div', { class: 'row settings' }, [th, fxb, gb, lb]);
 }
 
 /* ============================================================
@@ -3546,9 +3597,16 @@ function watchFrames(ms) {
   Perf.slow = ms > CONFIG.slowFrameMs ? Perf.slow + ms / 1000 : 0;
   if (Perf.slow > CONFIG.slowFrameSec) { setLowFx(true, true); toast('Λιγότερα εφέ: άναψαν μόνα τους, για να τρέχει πιο γρήγορα', '#6fe3c1'); }
 }
+/* «🎨 Γραφικά: Αυτόματα»: the frame times (gaps between frames, so the drawing cost counts too) on the title screen
+   and while playing; once the median stays over CONFIG.gfxSlowMs for gfxSlowSec, tier Α from now on (stored). */
+function watchTier(raw) {
+  if (Tier.pick !== 'auto' || Tier.slow || CONFIG.gfx || G.paused || document.hidden || (G.mode !== 'title' && G.mode !== 'city')) { Tier.gaps.length = 0; return; }
+  tierTrack(Tier.gaps, CONFIG.fakeFrameMs == null ? raw : CONFIG.fakeFrameMs, CONFIG.gfxSlowSec);
+  if (tierSlow(Tier.gaps, CONFIG.gfxSlowMs, CONFIG.gfxSlowSec)) { Tier.slow = true; Tier.gaps.length = 0; saveTier(); applyTier(); }
+}
 function frame(now) {
   const raw = now - last, dt = Math.min(.05, raw / 1000); last = now;
-  readMove(); watchFrames(raw);
+  readMove(); watchFrames(raw); watchTier(raw);
   try {
     if (G.mode === 'title') { G.time += dt; updateLife(dt); updateSky(dt); }
     else update(dt);
@@ -3576,7 +3634,7 @@ if (TEST) window.__kmDebug = () => ({
     builds: Paint.builds.size, buildMoods: [...new Set([...Paint.builds.values()].map(b => b.mood))],
     bakes: Paint.bakes, bakeMs: Math.round(Paint.bakeMs), fallbacks: Paint.fallbacks, layers: Paint.layers, foreBuilds: Paint.foreBuilds, vigOn: Paint.vigOn },
   // GAMES-GRAPHICS tiers (Α light and shadow, Β materials) and the light gradients' mood
-  graphics: { a: GFX.a, b: GFX.b, litMood: Lit.mood, litBakes: Lit.bakes, texMs: GFX.texMs, texBuilds: GFX.texBuilds },
+  graphics: { a: GFX.a, b: GFX.b, pick: Tier.pick, slow: Tier.slow, tier: tierOf(Tier.pick, Tier.slow), litMood: Lit.mood, litBakes: Lit.bakes, texMs: GFX.texMs, texBuilds: GFX.texBuilds },
 });
 function boot() {
   applyLang();

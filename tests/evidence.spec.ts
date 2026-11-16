@@ -58,7 +58,7 @@ test.describe('evidence screenshots', () => {
           test.skip(info.project.name !== 'desktop');
           test.setTimeout(120_000);
           await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'no-preference' });
-          await page.addInitScript(() => { (window as any).__KM_TEST__ = { config: { forceHour: 10, slowFrameMs: 1e9 } }; });
+          await page.addInitScript(() => { (window as any).__KM_TEST__ = { config: { forceHour: 10, slowFrameMs: 1e9, gfxSlowMs: 1e9 } }; });
           const press = async (name: string | RegExp) => {
             const b = page.getByRole('button', { name }).first();
             await expect(b).toBeVisible();

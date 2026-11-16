@@ -34,6 +34,8 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Unit tests (node --test, the pure parts of index.html)
+        run: npm run test:unit
       - name: Secret-name scan (boss 5 never in a repo file, KM-SECRET-01)
         run: node tests/secret-scan.mjs
       - name: Secret-name scan (history)

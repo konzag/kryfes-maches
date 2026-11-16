@@ -41,7 +41,7 @@ async function open(page: Page, config: Record<string, unknown> = {}) {
   });
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
   await page.addInitScript((cfg) => {
-    (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, ...cfg } };
+    (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, gfxSlowMs: 1e9, ...cfg } };
     document.addEventListener('securitypolicyviolation', (e) => console.error(`CSP violation: ${e.violatedDirective} ${e.blockedURI}`));
   }, config);
   return problems;

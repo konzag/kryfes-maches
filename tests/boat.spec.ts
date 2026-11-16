@@ -19,7 +19,7 @@ async function press(page: Page, tap: boolean, name: string | RegExp) {
   await (tap ? b.tap() : b.click());
 }
 async function hook(page: Page) {
-  await page.addInitScript(() => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, forceHour: 12 } }; });
+  await page.addInitScript(() => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, gfxSlowMs: 1e9, forceHour: 12 } }; });
 }
 /** New game → house → city. */
 async function newGameToCity(page: Page, tap: boolean) {

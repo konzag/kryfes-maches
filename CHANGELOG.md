@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- «🎨 Γραφικά: Αυτόματα / Κανονικά / Πλούσια» with an automatic fall-back of tier Β (owner decision 16/11 §2, option b):
+  `#bGfx` in the settings row of the title and pause screens (EL + EN, same wording as magic-islands). «Αυτόματα» (the
+  default) = tier Β until the median frame gap stays over `CONFIG.gfxSlowMs` (20 ms) for `gfxSlowSec` (3 s) on the
+  title screen or while playing (not paused or hidden), then tier Α, remembered per device in `kryfes-maches.gfx.v1`
+  (JSON `{pick, slow}`, try/catch); «Κανονικά» = tier Α, «Πλούσια» = tier Β, never overruled. Pure decision functions
+  (`tierTrack`, `tierSlow`, `tierOf`, `tierPick`) between `tier:pure` markers, with node unit tests
+  (`tests/unit/gfx-tier.unit.mjs`, CI step `npm run test:unit`; K9 `unit-tests` present, allowlist entry removed). New
+  `tests/tier.spec.ts` (test hook `fakeFrameMs`); the frame-time gate now runs the candidate as a new device and asserts
+  the fall-back when its median frame gap is over the limit. README KM-72.
 - EL + EN shell (owner 02/11, Block 7): `I18N` (`el` / `en`), `tr()`, `applyLang()`; «EN» / «ΕΛ» button (`#bLang`) in the
   settings row of the title and pause screens; the menus (title, slots, create, intro heading, pause, lost, end
   buttons), theme / «Λιγότερα εφέ» labels, the shell and touch-pad aria-labels, the wardrobe bar and the rotate message

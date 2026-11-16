@@ -5,9 +5,12 @@
 // frame callback (update + drawing), the same measure as tests/perf.spec.ts.
 // Two variants, interleaved in the same test (ABBA ABBA), so both run on the same machine under the same load:
 //   reference = test config gfx 'base' : the look before GAMES-GRAPHICS (tiers off)
-//   candidate = no gfx override        : the default «Κανονικά»
-// slowFrameMs 1e9 (test config) keeps «Λιγότερα εφέ» from switching on by itself on the throttled CPU, so the gate
-// measures the full look. The config travels in sessionStorage to the init script (test only, never in the game).
+//   candidate = no gfx override        : the default «🎨 Γραφικά: Αυτόματα», as a new device gets it
+// slowFrameMs 1e9 (test config) keeps «Λιγότερα εφέ» from switching on by itself on the throttled CPU. The tier Β
+// fall-back of «Αυτόματα» stays on (owner decision 16/11, option b): the run starts as a new device (no
+// `kryfes-maches.gfx.v1`); when the candidate's median frame gap is over CONFIG.gfxSlowMs (software drawing at CPU 4x,
+// as in CI) the test asserts that the game DID fall back to tier Α (and remembered it), and the gates below then
+// measure what such a device really gets: a few seconds of tier Β, then tier Α. The budgets are not loosened. The config travels in sessionStorage to the init script (test only, never in the game).
 // Gates (thresholds in tests/frametime.json): candidate p95 <= reference p95 x (1 + maxGrowth); candidate frames >=
 // reference frames x minFrameRatio (the raster cost); and candidate
 // p95 <= p95MaxMs whenever the reference itself meets p95MaxMs on this machine. The numbers go to the log
@@ -19,7 +22,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 
-declare const G: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+declare const G: any, CONFIG: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const CFG = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'frametime.json'), 'utf8'));
 const SAVE_KEY = 'game.kryfes-maches.v1';
 type Cdp = { send: (m: string, p?: object) => Promise<unknown> };
@@ -47,7 +50,9 @@ async function segment(page: Page, cdp: Cdp, config: Record<string, unknown>, ms
   for (let i = 0; Date.now() < end; i++) { const k = keys[i % 4]; await page.keyboard.down(k); await page.waitForTimeout(450); await page.keyboard.up(k); }
   const out = await page.evaluate(() => {
     const F = (window as any).__ft; F.on = false; // eslint-disable-line @typescript-eslint/no-explicit-any
-    return { list: F.list.slice() as number[], gaps: F.gaps.slice() as number[], mode: G.mode as string };
+    const g = (window as any).__kmDebug().graphics; // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { list: F.list.slice() as number[], gaps: F.gaps.slice() as number[], mode: G.mode as string, b: g.b as boolean, slow: g.slow as boolean,
+      stored: localStorage.getItem('kryfes-maches.gfx.v1'), slowMs: CONFIG.gfxSlowMs as number };
   });
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
   expect(out.mode, 'still in the city after the segment').toBe('city');
@@ -73,19 +78,23 @@ test('frame time with the CPU 4x slower: p95 within the GAMES-GRAPHICS budget @f
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/'); // the origin's storage is reachable only after a first page load
+  await page.evaluate(() => localStorage.removeItem('kryfes-maches.gfx.v1')); // a new device: «Αυτόματα», not measured yet
   const cdp = await page.context().newCDPSession(page);
   const seg = CFG.playMsPerVariant / CFG.segments;
   const ref: number[] = [], cand: number[] = [], refGaps: number[] = [], candGaps: number[] = [];
+  let last: Awaited<ReturnType<typeof segment>> | null = null;
   const order = ['ref', 'cand', 'cand', 'ref'];
   expect(CFG.segments % 2, 'segments: an even number (ABBA blocks)').toBe(0);
   for (let i = 0; i < CFG.segments * 2; i++) { // segments per variant, alternating
     const v = order[i % 4], r = await segment(page, cdp, v === 'ref' ? { gfx: 'base' } : {}, seg);
     (v === 'ref' ? ref : cand).push(...r.list); (v === 'ref' ? refGaps : candGaps).push(...r.gaps);
+    if (v === 'cand') last = r;
   }
   const res = {
     throttle: CFG.cpuThrottle, viewport: '1180x820@2',
     reference: { frames: ref.length, meanMs: mean(ref), p50Ms: pct(ref, 0.5), p95Ms: pct(ref, 0.95), gapP95Ms: pct(refGaps, 0.95) },
-    candidate: { frames: cand.length, meanMs: mean(cand), p50Ms: pct(cand, 0.5), p95Ms: pct(cand, 0.95), gapP95Ms: pct(candGaps, 0.95) },
+    candidate: { frames: cand.length, meanMs: mean(cand), p50Ms: pct(cand, 0.5), p95Ms: pct(cand, 0.95), gapP50Ms: pct(candGaps, 0.5), gapP95Ms: pct(candGaps, 0.95) },
+    fallback: { slow: last!.slow, tierB: last!.b, stored: last!.stored, limitMs: last!.slowMs },
   };
   const limit = +(res.reference.p95Ms * (1 + CFG.maxGrowth)).toFixed(2);
   const absolute = res.reference.p95Ms <= CFG.p95MaxMs;
@@ -96,9 +105,16 @@ test('frame time with the CPU 4x slower: p95 within the GAMES-GRAPHICS budget @f
   expect(errors).toEqual([]);
   expect(ref.length, 'enough reference frames').toBeGreaterThan(30);
   expect(cand.length, 'enough candidate frames').toBeGreaterThan(30);
+  // «Αυτόματα» on a slow device: the median frame gap over the limit means the game must have switched to tier Α
+  // and stored it for this device (owner decision 16/11 §2, option b)
+  if (res.candidate.gapP50Ms > last!.slowMs) {
+    expect(last!.slow, `median frame gap ${res.candidate.gapP50Ms} ms > ${last!.slowMs} ms: tier Β fell back to tier Α`).toBe(true);
+    expect(last!.b, 'tier Β off after the fall-back').toBe(false);
+    expect(JSON.parse(last!.stored || 'null'), 'the fall-back is remembered on this device').toEqual({ pick: 'auto', slow: true });
+  }
   expect(res.candidate.p95Ms, `candidate p95 vs reference p95 ${res.reference.p95Ms} ms + ${CFG.maxGrowth * 100} %`).toBeLessThanOrEqual(limit);
   expect(cand.length, `frames drawn: candidate vs reference ${ref.length} x ${CFG.minFrameRatio} (the drawing cost the callback time misses)`).toBeGreaterThanOrEqual(Math.floor(ref.length * CFG.minFrameRatio));
-  if (absolute) expect(res.candidate.p95Ms, `p95 <= ${CFG.p95MaxMs} ms («Κανονικά»)`).toBeLessThanOrEqual(CFG.p95MaxMs);
+  if (absolute) expect(res.candidate.p95Ms, `p95 <= ${CFG.p95MaxMs} ms («Αυτόματα»)`).toBeLessThanOrEqual(CFG.p95MaxMs);
 });
 
 // GAMES-GRAPHICS §4, tier Β: the materials are made once, the first time the ground is drawn, and cost <= texturesMaxMs
@@ -108,7 +124,7 @@ test('materials (tier Β) are made once, within the load budget with the CPU 4x 
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.addInitScript(() => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9 } }; }); // eslint-disable-line @typescript-eslint/no-explicit-any
+  await page.addInitScript(() => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, gfxSlowMs: 1e9 } }; }); // eslint-disable-line @typescript-eslint/no-explicit-any
   await page.goto('/');
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: CFG.cpuThrottle });
