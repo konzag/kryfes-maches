@@ -219,37 +219,37 @@ body.rotstrip #screen{padding-bottom:72px}
 <div id="touch" hidden>
   <div id="stick"><div id="knob"></div></div>
   <div id="pads">
-    <button id="pA" aria-label="Ικανότητα 1">⚡<span class="cd"></span></button>
-    <button id="pB" aria-label="Ικανότητα 2">💨<span class="cd"></span></button>
-    <button id="pS" aria-label="Σούπερ">★<span class="cd"></span></button>
-    <button id="pC" aria-label="Ασπίδα">🛡<span class="cd"></span></button>
-    <button id="pF" aria-label="Φαγητό">🥧<span class="cd"></span></button>
-    <button id="pE" aria-label="Μπες">👆<span class="cd"></span></button>
+    <button id="pA" aria-label="Ικανότητα 1" data-ta="padA">⚡<span class="cd"></span></button>
+    <button id="pB" aria-label="Ικανότητα 2" data-ta="padB">💨<span class="cd"></span></button>
+    <button id="pS" aria-label="Σούπερ" data-ta="padS">★<span class="cd"></span></button>
+    <button id="pC" aria-label="Ασπίδα" data-ta="padC">🛡<span class="cd"></span></button>
+    <button id="pF" aria-label="Φαγητό" data-ta="padF">🥧<span class="cd"></span></button>
+    <button id="pE" aria-label="Μπες" data-ta="padE">👆<span class="cd"></span></button>
   </div>
 </div>
 <div id="screen" hidden></div>
 <div id="house" hidden>
   <div class="mirrorBox"><div class="glass"><canvas id="mirror"></canvas></div><div class="mstats" id="mstats"></div></div>
   <div class="ward">
-    <div class="whead"><h2 id="wTitle">Το σπίτι μου</h2><span class="pg" id="wProg"></span></div>
+    <div class="whead"><h2 id="wTitle" data-t="house">Το σπίτι μου</h2><span class="pg" id="wProg"></span></div>
     <div class="scroller" id="wTabsBox"><button class="sc prev" tabindex="-1" aria-hidden="true">‹</button><div class="tabs" id="wTabs"></div><button class="sc next" tabindex="-1" aria-hidden="true">›</button></div>
     <div class="scroller" id="wChipsBox"><button class="sc prev" tabindex="-1" aria-hidden="true">‹</button><div class="chips" id="wChips"></div><button class="sc next" tabindex="-1" aria-hidden="true">›</button></div>
     <div class="hint" id="wHint" aria-live="polite"></div>
     <div class="scroller gridbox" id="wGridBox"><button class="sc prev" tabindex="-1" aria-hidden="true">‹</button><div class="grid" id="wGrid"></div><button class="sc next" tabindex="-1" aria-hidden="true">›</button></div>
     <div class="wbar">
-      <button class="ghost" id="wRandom">🎲 Τυχαίο</button>
-      <button class="ghost" id="wSave">💾 Αποθήκευση</button>
-      <button id="wOut">🚪 Βγες στην πόλη</button>
+      <button class="ghost" id="wRandom" data-t="random">🎲 Τυχαίο</button>
+      <button class="ghost" id="wSave" data-t="save">💾 Αποθήκευση</button>
+      <button id="wOut" data-t="out">🚪 Βγες στην πόλη</button>
     </div>
   </div>
 </div>
 <div id="shell">
-  <button id="bPause" aria-label="Παύση">⏸</button>
-  <button id="bSound" aria-label="Ήχος">🔊</button>
-  <button id="bFull" aria-label="Πλήρης οθόνη">⛶</button>
-  <button id="bHome" aria-label="Πίσω στα παιχνίδια">🏠</button>
+  <button id="bPause" aria-label="Παύση" data-ta="pause">⏸</button>
+  <button id="bSound" aria-label="Ήχος" data-ta="sound">🔊</button>
+  <button id="bFull" aria-label="Πλήρης οθόνη" data-ta="full">⛶</button>
+  <button id="bHome" aria-label="Πίσω στα παιχνίδια" data-ta="home">🏠</button>
 </div>
-<div id="rotate" hidden><div class="ph">📱</div><div>Γύρισε τη συσκευή οριζόντια για να παίξεις!</div></div>
+<div id="rotate" hidden><div class="ph">📱</div><div data-t="rotate">Γύρισε τη συσκευή οριζόντια για να παίξεις!</div></div>
 <script>
 'use strict';
 /* ============================================================
@@ -598,15 +598,59 @@ const calm = () => Calm.on;
 const themeNow = () => Settings.theme === 'auto' ? (mqDark.matches ? 'dark' : 'light') : Settings.theme;
 function applyTheme() { document.documentElement.dataset.theme = themeNow(); }
 mqDark.addEventListener('change', applyTheme); applyTheme();
-const THEME_LABEL = { auto: '🌗 Θέμα: αυτόματο', light: '☀️ Θέμα: φωτεινό', dark: '🌙 Θέμα: σκοτεινό' };
+/* EL + EN in the shell (owner 02/11, Block 7): menus, buttons and their labels in Greek or English; the story (intro,
+   lose / end texts, the city's signs, names, the wardrobe's items) stays Greek and is marked lang="el". The key
+   `games.lang` is shared with the hub and every game on the same origin; only 'en' counts, anything else (or no
+   storage) is Greek. Never inside the save. */
+const LANG_KEY = 'games.lang';
+const I18N = {
+  el: { play: '▶ Παίξε', keysShort: 'Βελάκια ή WASD: κίνηση · 1 2: ικανότητες · 3: ασπίδα · 4: φαγητό · Space: σούπερ · E: μπες · P: παύση',
+    who: 'Ποιος παίζει;', del: 'Σβήσε', delSure: 'Σίγουρα; Σβήσε', monsters: 'Τέρατα ', battles: ' · Μάχες ', playTime: 'Χρόνος παιχνιδιού ',
+    cont: 'Συνέχεια', empty: 'Κενή θέση ', makeHero: 'Φτιάξε νέο ήρωα', newGame: 'Νέο παιχνίδι', back: '← Πίσω',
+    whichHero: 'Ποιον ήρωα θα ετοιμάσεις;', namePh: 'π.χ. Ηλέκτρα', start: 'Ξεκίνα την περιπέτεια →', heroName: 'Πώς λένε τον ήρωα;',
+    story: 'Η ιστορία', ready: 'Πάμε να ετοιμαστώ! →',
+    pauseH: '⏸ Παύση', keysLong: 'Βελάκια ή WASD: κίνηση · 1 και 2: ικανότητες του όπλου · 3: ασπίδα · 4: φάε κάτι · Space: σούπερ επίθεση · E: μπες (σπίτι, βάρκα, πύλη). Το όπλο χτυπά μόνο του όταν είσαι κοντά σε τέρας.',
+    resume: '▶ Συνέχεια', save: '💾 Αποθήκευση', saved: 'Αποθηκεύτηκε ✓', noSave: 'Η συσκευή δεν κρατά αποθήκευση', goHome: '🏡 Πήγαινε σπίτι', startScreen: 'Αρχική οθόνη',
+    tiredH: 'Ωχ! Κουράστηκες...', homeNow: '🏡 Πάμε σπίτι', explore: 'Συνέχισε να εξερευνάς',
+    theme_auto: '🌗 Θέμα: αυτόματο', theme_light: '☀️ Θέμα: φωτεινό', theme_dark: '🌙 Θέμα: σκοτεινό', lowFx: '✨ Λιγότερα εφέ',
+    house: 'Το σπίτι μου', random: '🎲 Τυχαίο', out: '🚪 Βγες στην πόλη', rotate: 'Γύρισε τη συσκευή οριζόντια για να παίξεις!',
+    pause: 'Παύση', sound: 'Ήχος', full: 'Πλήρης οθόνη', home: 'Πίσω στα παιχνίδια',
+    padA: 'Ικανότητα 1', padB: 'Ικανότητα 2', padS: 'Σούπερ', padC: 'Ασπίδα', padF: 'Φαγητό', padE: 'Μπες',
+    langBtn: 'EN', langLabel: 'EN English' },
+  en: { play: '▶ Play', keysShort: 'Arrows or WASD: move · 1 2: abilities · 3: shield · 4: food · Space: super · E: enter · P: pause',
+    who: 'Who is playing?', del: 'Delete', delSure: 'Sure? Delete', monsters: 'Monsters ', battles: ' · Battles ', playTime: 'Play time ',
+    cont: 'Continue', empty: 'Empty slot ', makeHero: 'Make a new hero', newGame: 'New game', back: '← Back',
+    whichHero: 'Which hero will you get ready?', namePh: 'e.g. Electra', start: 'Start the adventure →', heroName: 'What is the hero\'s name?',
+    story: 'The story', ready: 'Let\'s get ready! →',
+    pauseH: '⏸ Pause', keysLong: 'Arrows or WASD: move · 1 and 2: weapon abilities · 3: shield · 4: eat something · Space: super attack · E: enter (house, boat, gate). The weapon strikes by itself when you are near a monster.',
+    resume: '▶ Continue', save: '💾 Save', saved: 'Saved ✓', noSave: 'This device does not keep saves', goHome: '🏡 Go home', startScreen: 'Start screen',
+    tiredH: 'Oh! You got tired...', homeNow: '🏡 Let\'s go home', explore: 'Keep exploring',
+    theme_auto: '🌗 Theme: auto', theme_light: '☀️ Theme: light', theme_dark: '🌙 Theme: dark', lowFx: '✨ Fewer effects',
+    house: 'My house', random: '🎲 Random', out: '🚪 Go out to the city', rotate: 'Turn the device sideways to play!',
+    pause: 'Pause', sound: 'Sound', full: 'Full screen', home: 'Back to the games',
+    padA: 'Ability 1', padB: 'Ability 2', padS: 'Super', padC: 'Shield', padF: 'Food', padE: 'Enter',
+    langBtn: 'ΕΛ', langLabel: 'ΕΛ Ελληνικά' },
+};
+const Lang = { pick: 'el' };
+try { Lang.pick = localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'el'; } catch (e) { Lang.pick = 'el'; }
+const tr = k => (I18N[Lang.pick] || I18N.el)[k];
+function applyLang() { // the static shell; the menus are built with tr() each time they open
+  document.documentElement.lang = Lang.pick;
+  for (const n of document.querySelectorAll('[data-t]')) n.textContent = tr(n.dataset.t);
+  for (const n of document.querySelectorAll('[data-ta]')) n.setAttribute('aria-label', tr(n.dataset.ta));
+}
+function nextLang() { Lang.pick = Lang.pick === 'en' ? 'el' : 'en'; try { localStorage.setItem(LANG_KEY, Lang.pick); } catch (e) { /* this visit only */ } applyLang(); }
+const themeLabel = () => tr('theme_' + Settings.theme);
 function cycleTheme() { Settings.theme = { auto: 'light', light: 'dark', dark: 'auto' }[Settings.theme]; saveSettings(); applyTheme(); }
 function setLowFx(on, auto) { Settings.lowFx = on; if (auto) Settings.autoLowFx = true; saveSettings(); INK = on ? INK_OFF : INK_ON; TreeArt.map.clear(); }
 /* Theme + «Λιγότερα εφέ» buttons, on the title and pause screens. */
 function settingsRow() {
-  const th = btn(THEME_LABEL[Settings.theme], () => { cycleTheme(); th.textContent = THEME_LABEL[Settings.theme]; }, 'ghost');
-  const fxb = btn('✨ Λιγότερα εφέ', () => { setLowFx(!Settings.lowFx); fxb.setAttribute('aria-pressed', String(Settings.lowFx)); }, 'ghost');
-  th.id = 'bTheme'; fxb.id = 'bLowFx'; fxb.setAttribute('aria-pressed', String(Settings.lowFx));
-  return el('div', { class: 'row settings' }, [th, fxb]);
+  const th = btn(themeLabel(), () => { cycleTheme(); th.textContent = themeLabel(); }, 'ghost');
+  const fxb = btn(tr('lowFx'), () => { setLowFx(!Settings.lowFx); fxb.setAttribute('aria-pressed', String(Settings.lowFx)); }, 'ghost');
+  const lb = btn(tr('langBtn'), () => { nextLang(); if (curScreen) showScreen(curScreen); const b = $('bLang'); if (b) b.focus(); }, 'ghost');
+  th.id = 'bTheme'; fxb.id = 'bLowFx'; lb.id = 'bLang'; fxb.setAttribute('aria-pressed', String(Settings.lowFx));
+  lb.setAttribute('aria-label', tr('langLabel')); lb.lang = Lang.pick === 'en' ? 'el' : 'en';
+  return el('div', { class: 'row settings' }, [th, fxb, lb]);
 }
 
 /* ============================================================
@@ -3122,62 +3166,62 @@ function showScreen(name, data) {
     setMode('title'); music('title');
     card.classList.add('plate'); // translucent plate: the text stays readable over the city by day and by night
     card.append(logo(),
-      el('p', { class: 'sub', text: 'Ντύσε τον ήρωά σου, βγες στην πόλη της λίμνης και βρες τα πέντε τέρατα που κρύβονται στα στενά της. Μετά, ψάξε τη μαγική πύλη για να γυρίσεις σπίτι.' }),
-      el('div', { class: 'row' }, [btn('▶ Παίξε', () => { openSlots(); })]), settingsRow(),
-      el('p', { class: 'toastline', text: 'Βελάκια ή WASD: κίνηση · 1 2: ικανότητες · 3: ασπίδα · 4: φαγητό · Space: σούπερ · E: μπες · P: παύση' }));
+      el('p', { class: 'sub', lang: 'el', text: 'Ντύσε τον ήρωά σου, βγες στην πόλη της λίμνης και βρες τα πέντε τέρατα που κρύβονται στα στενά της. Μετά, ψάξε τη μαγική πύλη για να γυρίσεις σπίτι.' }),
+      el('div', { class: 'row' }, [btn(tr('play'), () => { openSlots(); })]), settingsRow(),
+      el('p', { class: 'toastline', text: tr('keysShort') }));
   }
   if (name === 'slots') {
-    card.appendChild(el('h2', { text: 'Ποιος παίζει;' }));
+    card.appendChild(el('h2', { text: tr('who') }));
     if (Server.on && Server.state !== 'off') card.appendChild(serverBox());
     const grid = el('div', { class: 'slots' }); card.appendChild(grid);
     const d = Store.read(), owner = Server.owner();
     Store.slots(d, owner).forEach((sl, i) => {
       const box = el('div', { class: 'slot' });
       if (sl) {
-        const del = btn('Σβήσε', () => { if (del.dataset.sure) { const dd = Store.read(); Store.slots(dd, owner)[i] = null; Store.markDirty(dd, owner, i); Store.write(dd); Server.push(owner, i); showScreen('slots'); } else { del.dataset.sure = '1'; del.textContent = 'Σίγουρα; Σβήσε'; del.className = 'danger'; } }, 'ghost');
+        const del = btn(tr('del'), () => { if (del.dataset.sure) { const dd = Store.read(); Store.slots(dd, owner)[i] = null; Store.markDirty(dd, owner, i); Store.write(dd); Server.push(owner, i); showScreen('slots'); } else { del.dataset.sure = '1'; del.textContent = tr('delSure'); del.className = 'danger'; } }, 'ghost');
         box.append(portrait(sl.look, 120), el('div', { class: 'nm', text: sl.name }),
-          el('div', { class: 'pg', text: 'Τέρατα ' + sl.bosses.length + '/5 · Μάχες ' + (sl.bosses.length + sl.minis.length) + '/20' + (sl.finished ? ' · 🏆' : '') }),
-          el('div', { class: 'pg', text: 'Χρόνος παιχνιδιού ' + fmtTime(sl.playMs || 0) }),
-          el('div', { class: 'row' }, [btn('Συνέχεια', () => loadSlot(i)), del]));
+          el('div', { class: 'pg', text: tr('monsters') + sl.bosses.length + '/5' + tr('battles') + (sl.bosses.length + sl.minis.length) + '/20' + (sl.finished ? ' · 🏆' : '') }),
+          el('div', { class: 'pg', text: tr('playTime') + fmtTime(sl.playMs || 0) }),
+          el('div', { class: 'row' }, [btn(tr('cont'), () => loadSlot(i)), del]));
       } else {
         const [c, x] = canvasOf(120, 120); x.fillStyle = '#271d45'; circ(x, 60, 60, 60); x.fill(); x.fillStyle = '#43356f'; x.font = '700 54px Comfortaa, sans-serif'; x.textAlign = 'center'; x.fillText('?', 60, 78);
-        box.append(c, el('div', { class: 'nm', text: 'Κενή θέση ' + (i + 1) }), el('div', { class: 'pg', text: 'Φτιάξε νέο ήρωα' }), btn('Νέο παιχνίδι', () => showScreen('create', { slot: i })));
+        box.append(c, el('div', { class: 'nm', text: tr('empty') + (i + 1) }), el('div', { class: 'pg', text: tr('makeHero') }), btn(tr('newGame'), () => showScreen('create', { slot: i })));
       }
       grid.appendChild(box);
     });
-    card.appendChild(el('div', { class: 'row', style: 'margin-top:16px' }, [btn('← Πίσω', () => showScreen('title'), 'ghost')]));
+    card.appendChild(el('div', { class: 'row', style: 'margin-top:16px' }, [btn(tr('back'), () => showScreen('title'), 'ghost')]));
   }
   if (name === 'create') {
     let gender = 'girl';
-    card.appendChild(el('h2', { text: 'Ποιον ήρωα θα ετοιμάσεις;' }));
+    card.appendChild(el('h2', { text: tr('whichHero') }));
     const pickRow = el('div', { class: 'pick' });
     const mk = g => { const [c, x] = canvasOf(150, 170); drawHero(x, defaultLook(g), { x: 75, y: 160, s: 2.2, t: .4 }); const b = el('button', { class: g === gender ? 'on' : '', on: { click: () => { gender = g; sfx('click'); [...pickRow.children].forEach(ch => ch.classList.toggle('on', ch === b)); } } }, [c, el('span', { text: g === 'girl' ? 'Κορίτσι' : 'Αγόρι' })]); return b; };
     pickRow.append(mk('girl'), mk('boy')); card.appendChild(pickRow);
-    const inp = el('input', { id: 'heroName', maxlength: '14', autocomplete: 'off', placeholder: 'π.χ. Ηλέκτρα' });
-    const go = btn('Ξεκίνα την περιπέτεια →', () => { const nm = inp.value.trim(); if (!nm) { inp.focus(); return; } G.slot = data.slot; G.owner = Server.owner(); G.S = newSave(nm, gender); saveGame(false); showScreen('intro'); });
+    const inp = el('input', { id: 'heroName', maxlength: '14', autocomplete: 'off', placeholder: tr('namePh') });
+    const go = btn(tr('start'), () => { const nm = inp.value.trim(); if (!nm) { inp.focus(); return; } G.slot = data.slot; G.owner = Server.owner(); G.S = newSave(nm, gender); saveGame(false); showScreen('intro'); });
     go.disabled = true; inp.addEventListener('input', () => { go.disabled = !inp.value.trim(); });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter' && inp.value.trim()) go.click(); });
-    card.append(el('label', { class: 'f', for: 'heroName', text: 'Πώς λένε τον ήρωα;' }), inp, el('div', { class: 'row', style: 'margin-top:18px' }, [btn('← Πίσω', () => showScreen('slots'), 'ghost'), go]));
+    card.append(el('label', { class: 'f', for: 'heroName', text: tr('heroName') }), inp, el('div', { class: 'row', style: 'margin-top:18px' }, [btn(tr('back'), () => showScreen('slots'), 'ghost'), go]));
     setTimeout(() => { try { inp.focus(); } catch (e) { /* ignore */ } }, 60);
   }
   if (name === 'intro') {
-    card.append(el('h2', { text: 'Η ιστορία' }),
+    card.append(el('h2', { text: tr('story') }),
       el('p', { text: 'Στην πόλη με τη λίμνη, κάτω από τον λόφο, κρύβονται πέντε τέρατα: ο Βραχυντής, η Γατοουρανιοτοξογρίλια, η ΗλιοΛίμνη, το ΣακουλοΦως και ένα πέμπτο που κανείς δεν ξέρει. Μαζί τους κρύβονται και πολλά Σκιουλάκια.' }),
       el('p', { text: 'Τίποτα δεν φαίνεται από μακριά. Ένας σωρός πέτρες, μια σακούλα στο πάρκινγκ, μια πίτα στο γρασίδι... Πλησίασε και θα δεις!' }),
       el('p', { text: 'Κάθε νίκη ανοίγει νέα ρούχα και ένα πιο δυνατό όπλο στο σπίτι σου. Όταν νικήσεις και τα πέντε τέρατα, η μαγική πύλη θα ανοίξει κάπου στην πόλη.' }),
-      el('div', { class: 'row' }, [btn('Πάμε να ετοιμαστώ! →', () => { hideScreen(); goHouse(true); })]));
+      el('div', { class: 'row' }, [btn(tr('ready'), () => { hideScreen(); goHouse(true); })]));
   }
   if (name === 'pause') {
-    card.append(el('h2', { text: '⏸ Παύση' }), el('p', { text: 'Βελάκια ή WASD: κίνηση · 1 και 2: ικανότητες του όπλου · 3: ασπίδα · 4: φάε κάτι · Space: σούπερ επίθεση · E: μπες (σπίτι, βάρκα, πύλη). Το όπλο χτυπά μόνο του όταν είσαι κοντά σε τέρας.' }));
-    const row = el('div', { class: 'row' }, [btn('▶ Συνέχεια', () => togglePause(false)), btn('💾 Αποθήκευση', () => { const ok = saveGame(false); card.querySelector('.toastline').textContent = ok ? 'Αποθηκεύτηκε ✓' : 'Η συσκευή δεν κρατά αποθήκευση'; }, 'ghost')]);
-    if (G.mode === 'city' && !G.fight) row.appendChild(btn('🏡 Πήγαινε σπίτι', () => { togglePause(false); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); }, 'ghost'));
-    row.appendChild(btn('Αρχική οθόνη', () => { saveGame(false); G.paused = false; showScreen('title'); }, 'ghost'));
+    card.append(el('h2', { text: tr('pauseH') }), el('p', { text: tr('keysLong') }));
+    const row = el('div', { class: 'row' }, [btn(tr('resume'), () => togglePause(false)), btn(tr('save'), () => { const ok = saveGame(false); card.querySelector('.toastline').textContent = ok ? tr('saved') : tr('noSave'); }, 'ghost')]);
+    if (G.mode === 'city' && !G.fight) row.appendChild(btn(tr('goHome'), () => { togglePause(false); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); }, 'ghost'));
+    row.appendChild(btn(tr('startScreen'), () => { saveGame(false); G.paused = false; showScreen('title'); }, 'ghost'));
     card.append(row, settingsRow(), el('p', { class: 'toastline', text: '' }));
   }
   if (name === 'lost') {
-    card.append(el('h2', { text: 'Ωχ! Κουράστηκες...' }), el('p', { text: (data.who ? 'Αυτή τη φορά κέρδισε ' + data.who + '. ' : '') + 'Γυρνάς σπίτι να ξεκουραστείς. Δεν χάθηκε τίποτα από όσα έχεις ξεκλειδώσει. Το τέρας κρύφτηκε ξανά στο ίδιο σημείο.' }),
+    card.append(el('h2', { text: tr('tiredH') }), el('p', { text: (data.who ? 'Αυτή τη φορά κέρδισε ' + data.who + '. ' : '') + 'Γυρνάς σπίτι να ξεκουραστείς. Δεν χάθηκε τίποτα από όσα έχεις ξεκλειδώσει. Το τέρας κρύφτηκε ξανά στο ίδιο σημείο.' }),
       el('p', { text: 'Συμβουλή: φόρα πανοπλία, κράτα φαγητό και πάτα 3 για ασπίδα όταν έρχονται πολλά μαζί.' }),
-      el('div', { class: 'row' }, [btn('🏡 Πάμε σπίτι', () => { hideScreen(); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); })]));
+      el('div', { class: 'row' }, [btn(tr('homeNow'), () => { hideScreen(); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); })]));
   }
   if (name === 'end') {
     const fam = G.S.family;
@@ -3185,7 +3229,7 @@ function showScreen(name, data) {
       el('p', { text: 'Νίκησες τα πέντε τέρατα και βρήκες τη μαγική πύλη. Γύρισες σπίτι χωρίς πανοπλία και όπλα, σαν απλό παιδί, και σε περίμεναν όλοι.' }),
       el('div', { class: 'endnames', text: 'Μαμά ' + fam.mom + ' · Μπαμπάς ' + fam.dad + ' · ' + (fam.sibs.length > 1 ? 'Αδέρφια ' : 'Αδερφάκι ') + fam.sibs.join(' και ') + ' · ' + (fam.pet.kind === 'dog' ? 'Σκυλάκι ' : 'Γατούλα ') + fam.pet.name }),
       el('p', { class: 'toastline', text: 'Κρυφές μάχες που κέρδισες: ' + G.S.minis.length + '/15. Όσες έμειναν σε περιμένουν ακόμα στην πόλη!' }),
-      el('div', { class: 'row', style: 'margin-top:12px' }, [btn('Συνέχισε να εξερευνάς', () => { hideScreen(); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); }), btn('Αρχική οθόνη', () => showScreen('title'), 'ghost')]));
+      el('div', { class: 'row', style: 'margin-top:12px' }, [btn(tr('explore'), () => { hideScreen(); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); }), btn(tr('startScreen'), () => showScreen('title'), 'ghost')]));
   }
 }
 
@@ -3535,6 +3579,7 @@ if (TEST) window.__kmDebug = () => ({
   graphics: { a: GFX.a, b: GFX.b, litMood: Lit.mood, litBakes: Lit.bakes, texMs: GFX.texMs, texBuilds: GFX.texBuilds },
 });
 function boot() {
+  applyLang();
   buildWorld(); heroInit(); spawnLife(); resize();
   showScreen('title');
   requestAnimationFrame(frame);
