@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- GAMES-GRAPHICS tier Α, light and shadow (L1-26 step 2): the lake takes the key light (sun / sunset / moon glow on
+  the far top-left water, the near bottom-right water in the shade, the island's soft shadow on the water along the
+  light, the island lit from the top left); the fountain and the boats get `castShadow` like the houses. Gradients
+  made again only when the mood changes (`Lit`). `GFX` flags; test config `gfx` ('base' / 'a') only to compare.
+  New `tests/graphics.spec.ts` (3), `__kmDebug().graphics`; README KM-69. Save key and format unchanged.
+
 - GAMES-GRAPHICS step 1 (L1-26, «before»): `tests/frametime.spec.ts` (@frametime, tablet project, CPU 4x slower via
   CDP, 10 s in the city per variant, ABBA-interleaved): candidate p95 <= reference p95 + 10 %, and <= 20 ms where the
   reference meets it; thresholds and the «before» numbers in `tests/frametime.json`. CI runs it alone in its own step.
