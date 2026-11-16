@@ -56,7 +56,7 @@ const pct = (l: number[], q: number) => { const s = l.slice().sort((a, b) => a -
 const mean = (l: number[]) => +(l.reduce((a, b) => a + b, 0) / l.length).toFixed(2);
 
 test('frame time with the CPU 4x slower: p95 within the GAMES-GRAPHICS budget @frametime', async ({ page }, info) => {
-  test.skip(info.project.name !== 'tablet', 'tablet project only (the family tablet: 1180x820, pixel ratio 2)');
+  expect(info.project.name, 'tablet project only (playwright.config.ts)').toBe('tablet');
   test.setTimeout(300_000);
   await page.addInitScript(() => {
     let extra = {};

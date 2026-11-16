@@ -6,7 +6,7 @@
   CDP, 10 s in the city per variant, ABBA-interleaved): candidate p95 <= reference p95 + 10 %, and <= 20 ms where the
   reference meets it; thresholds and the «before» numbers in `tests/frametime.json`. CI runs it alone in its own step.
   Reference = test config `gfx: 'base'` (the look before GAMES-GRAPHICS; no effect until tier Α). The game does not
-  change. Test-count floor 341 -> 343.
+  change. Test-count floor 341 -> 342.
 
 - NIGHT-2 (2026-11-10): CodeQL (`.github/workflows/codeql.yml`: javascript-typescript, which reads the inline
   script of index.html, and actions; buildless, security-extended, GitHub-hosted, actions pinned by SHA) next to
