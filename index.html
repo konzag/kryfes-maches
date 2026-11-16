@@ -219,37 +219,37 @@ body.rotstrip #screen{padding-bottom:72px}
 <div id="touch" hidden>
   <div id="stick"><div id="knob"></div></div>
   <div id="pads">
-    <button id="pA" aria-label="Ικανότητα 1">⚡<span class="cd"></span></button>
-    <button id="pB" aria-label="Ικανότητα 2">💨<span class="cd"></span></button>
-    <button id="pS" aria-label="Σούπερ">★<span class="cd"></span></button>
-    <button id="pC" aria-label="Ασπίδα">🛡<span class="cd"></span></button>
-    <button id="pF" aria-label="Φαγητό">🥧<span class="cd"></span></button>
-    <button id="pE" aria-label="Μπες">👆<span class="cd"></span></button>
+    <button id="pA" aria-label="Ικανότητα 1" data-ta="padA">⚡<span class="cd"></span></button>
+    <button id="pB" aria-label="Ικανότητα 2" data-ta="padB">💨<span class="cd"></span></button>
+    <button id="pS" aria-label="Σούπερ" data-ta="padS">★<span class="cd"></span></button>
+    <button id="pC" aria-label="Ασπίδα" data-ta="padC">🛡<span class="cd"></span></button>
+    <button id="pF" aria-label="Φαγητό" data-ta="padF">🥧<span class="cd"></span></button>
+    <button id="pE" aria-label="Μπες" data-ta="padE">👆<span class="cd"></span></button>
   </div>
 </div>
 <div id="screen" hidden></div>
 <div id="house" hidden>
   <div class="mirrorBox"><div class="glass"><canvas id="mirror"></canvas></div><div class="mstats" id="mstats"></div></div>
   <div class="ward">
-    <div class="whead"><h2 id="wTitle">Το σπίτι μου</h2><span class="pg" id="wProg"></span></div>
+    <div class="whead"><h2 id="wTitle" data-t="house">Το σπίτι μου</h2><span class="pg" id="wProg"></span></div>
     <div class="scroller" id="wTabsBox"><button class="sc prev" tabindex="-1" aria-hidden="true">‹</button><div class="tabs" id="wTabs"></div><button class="sc next" tabindex="-1" aria-hidden="true">›</button></div>
     <div class="scroller" id="wChipsBox"><button class="sc prev" tabindex="-1" aria-hidden="true">‹</button><div class="chips" id="wChips"></div><button class="sc next" tabindex="-1" aria-hidden="true">›</button></div>
     <div class="hint" id="wHint" aria-live="polite"></div>
     <div class="scroller gridbox" id="wGridBox"><button class="sc prev" tabindex="-1" aria-hidden="true">‹</button><div class="grid" id="wGrid"></div><button class="sc next" tabindex="-1" aria-hidden="true">›</button></div>
     <div class="wbar">
-      <button class="ghost" id="wRandom">🎲 Τυχαίο</button>
-      <button class="ghost" id="wSave">💾 Αποθήκευση</button>
-      <button id="wOut">🚪 Βγες στην πόλη</button>
+      <button class="ghost" id="wRandom" data-t="random">🎲 Τυχαίο</button>
+      <button class="ghost" id="wSave" data-t="save">💾 Αποθήκευση</button>
+      <button id="wOut" data-t="out">🚪 Βγες στην πόλη</button>
     </div>
   </div>
 </div>
 <div id="shell">
-  <button id="bPause" aria-label="Παύση">⏸</button>
-  <button id="bSound" aria-label="Ήχος">🔊</button>
-  <button id="bFull" aria-label="Πλήρης οθόνη">⛶</button>
-  <button id="bHome" aria-label="Πίσω στα παιχνίδια">🏠</button>
+  <button id="bPause" aria-label="Παύση" data-ta="pause">⏸</button>
+  <button id="bSound" aria-label="Ήχος" data-ta="sound">🔊</button>
+  <button id="bFull" aria-label="Πλήρης οθόνη" data-ta="full">⛶</button>
+  <button id="bHome" aria-label="Πίσω στα παιχνίδια" data-ta="home">🏠</button>
 </div>
-<div id="rotate" hidden><div class="ph">📱</div><div>Γύρισε τη συσκευή οριζόντια για να παίξεις!</div></div>
+<div id="rotate" hidden><div class="ph">📱</div><div data-t="rotate">Γύρισε τη συσκευή οριζόντια για να παίξεις!</div></div>
 <script>
 'use strict';
 /* ============================================================
@@ -283,11 +283,53 @@ const CONFIG = {
   ambientMax: 60,                 // ambient life (leaves, lake glints, fireflies): one pool with this cap; 0 = off
   slowFrameMs: 25,                // «Λιγότερα εφέ» switches on by itself (once) when frames stay this slow ...
   slowFrameSec: 3,                // ... for this long
+  gfx: null,                      // tests only (through the test hook): 'base' = the look before GAMES-GRAPHICS, 'a' = tier Α only
+  gfxSlowMs: 20,                  // «🎨 Γραφικά: Αυτόματα»: tier Β gives way to tier Α when the median frame stays over this ...
+  gfxSlowSec: 3,                  // ... for this long (on the title screen and while playing); remembered per device
+  fakeFrameMs: null,              // tests only (through the test hook): the frame time that watch sees instead of the real one
 };
 /* Test hook: Playwright sets window.__KM_TEST__ = { config: {...} } with addInitScript before the page loads.
    Nothing a player can reach sets it (no URL parameter, no storage key). */
 const TEST = window.__KM_TEST__ || null;
 if (TEST && TEST.config) Object.assign(CONFIG, TEST.config);
+/* GAMES-GRAPHICS (games-template docs/specs/GAMES-GRAPHICS.md): tier Α light and shadow, tier Β code-made materials.
+   The setting «🎨 Γραφικά» (owner decision 16/11, option b; same wording as magic-islands, own key `<slug>.gfx.v1`):
+   «Αυτόματα» (the default) = tier Β while the device keeps up, tier Α once the median frame stayed over
+   CONFIG.gfxSlowMs for gfxSlowSec (measured on the title screen and while playing, never while paused or hidden) and
+   from then on on this device; «Κανονικά» = always tier Α; «Πλούσια» = always tier Β. Stored as JSON
+   {"pick": "auto" | "normal" | "rich", "slow": true | false}, outside the save (the save key and format never change).
+   The test hook config `gfx` ('base' = the look before, 'a' = tier Α only) overrides all of it, to measure. */
+const GFX_KEY = CONFIG.slug + '.gfx.v1';
+/* tier:pure:start */
+/* The pure parts of the decision (tests/unit/gfx-tier.unit.mjs loads this block on its own: no DOM, no globals).
+   tierTrack: adds one frame time (ms) to the window `gaps` and drops the oldest frames that are not needed to cover
+   the last `sec` seconds; a frame of 1 s or more is a stall (tab switch, alert, GC), not play, and is skipped, as is
+   anything that is not a number. Returns the same array. tierSlow: true when the window covers `sec` seconds and its
+   median frame is over `limitMs` (the median, so a few long frames among fast ones do not count). tierOf: the tier the
+   choice gives. tierPick: the stored JSON read back; anything unknown or broken = «Αυτόματα» on a fast device. */
+function tierTrack(gaps, ms, sec) {
+  if (!(ms >= 0 && ms < 1000)) return gaps;
+  gaps.push(ms);
+  let sum = 0; for (const g of gaps) sum += g;
+  while (gaps.length > 1 && sum - gaps[0] >= sec * 1000) sum -= gaps.shift();
+  return gaps;
+}
+function tierSlow(gaps, limitMs, sec) {
+  let sum = 0; for (const g of gaps) sum += g;
+  if (sum < sec * 1000) return false;
+  const s = gaps.slice().sort((x, y) => x - y), n = s.length;
+  return (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) > limitMs;
+}
+function tierOf(pick, slow) { return pick === 'normal' ? 'a' : pick === 'rich' ? 'b' : slow ? 'a' : 'b'; }
+function tierPick(raw) {
+  let o = null; try { o = JSON.parse(raw); } catch (e) { o = null; }
+  if (!o || typeof o !== 'object' || !['auto', 'normal', 'rich'].includes(o.pick)) return { pick: 'auto', slow: false };
+  return { pick: o.pick, slow: o.slow === true };
+}
+/* tier:pure:end */
+const Tier = { pick: 'auto', slow: false, gaps: [] };
+try { Object.assign(Tier, tierPick(localStorage.getItem(GFX_KEY))); } catch (e) { /* no storage: «Αυτόματα», measured this visit */ }
+const GFX = { a: CONFIG.gfx !== 'base', b: CONFIG.gfx ? false : tierOf(Tier.pick, Tier.slow) === 'b', texMs: 0, texBuilds: 0 };
 const SAVE_KEY = 'game.' + CONFIG.slug + '.v1';
 const SOUND_KEY = 'game.' + CONFIG.slug + '.sound';
 const SETTINGS_KEY = 'game.' + CONFIG.slug + '.settings.v1'; // shell theme + effects; never inside the save
@@ -594,15 +636,72 @@ const calm = () => Calm.on;
 const themeNow = () => Settings.theme === 'auto' ? (mqDark.matches ? 'dark' : 'light') : Settings.theme;
 function applyTheme() { document.documentElement.dataset.theme = themeNow(); }
 mqDark.addEventListener('change', applyTheme); applyTheme();
-const THEME_LABEL = { auto: '🌗 Θέμα: αυτόματο', light: '☀️ Θέμα: φωτεινό', dark: '🌙 Θέμα: σκοτεινό' };
+/* EL + EN in the shell (owner 02/11, Block 7): menus, buttons and their labels in Greek or English; the story (intro,
+   lose / end texts, the city's signs, names, the wardrobe's items) stays Greek and is marked lang="el". The key
+   `games.lang` is shared with the hub and every game on the same origin; only 'en' counts, anything else (or no
+   storage) is Greek. Never inside the save. */
+const LANG_KEY = 'games.lang';
+const I18N = {
+  el: { play: '▶ Παίξε', keysShort: 'Βελάκια ή WASD: κίνηση · 1 2: ικανότητες · 3: ασπίδα · 4: φαγητό · Space: σούπερ · E: μπες · P: παύση',
+    who: 'Ποιος παίζει;', del: 'Σβήσε', delSure: 'Σίγουρα; Σβήσε', monsters: 'Τέρατα ', battles: ' · Μάχες ', playTime: 'Χρόνος παιχνιδιού ',
+    cont: 'Συνέχεια', empty: 'Κενή θέση ', makeHero: 'Φτιάξε νέο ήρωα', newGame: 'Νέο παιχνίδι', back: '← Πίσω',
+    whichHero: 'Ποιον ήρωα θα ετοιμάσεις;', namePh: 'π.χ. Ηλέκτρα', start: 'Ξεκίνα την περιπέτεια →', heroName: 'Πώς λένε τον ήρωα;',
+    story: 'Η ιστορία', ready: 'Πάμε να ετοιμαστώ! →',
+    pauseH: '⏸ Παύση', keysLong: 'Βελάκια ή WASD: κίνηση · 1 και 2: ικανότητες του όπλου · 3: ασπίδα · 4: φάε κάτι · Space: σούπερ επίθεση · E: μπες (σπίτι, βάρκα, πύλη). Το όπλο χτυπά μόνο του όταν είσαι κοντά σε τέρας.',
+    resume: '▶ Συνέχεια', save: '💾 Αποθήκευση', saved: 'Αποθηκεύτηκε ✓', noSave: 'Η συσκευή δεν κρατά αποθήκευση', goHome: '🏡 Πήγαινε σπίτι', startScreen: 'Αρχική οθόνη',
+    tiredH: 'Ωχ! Κουράστηκες...', homeNow: '🏡 Πάμε σπίτι', explore: 'Συνέχισε να εξερευνάς',
+    theme_auto: '🌗 Θέμα: αυτόματο', theme_light: '☀️ Θέμα: φωτεινό', theme_dark: '🌙 Θέμα: σκοτεινό', lowFx: '✨ Λιγότερα εφέ',
+    gfx: '🎨 Γραφικά: ', gfx_auto: 'Αυτόματα', gfx_normal: 'Κανονικά', gfx_rich: 'Πλούσια',
+    house: 'Το σπίτι μου', random: '🎲 Τυχαίο', out: '🚪 Βγες στην πόλη', rotate: 'Γύρισε τη συσκευή οριζόντια για να παίξεις!',
+    pause: 'Παύση', sound: 'Ήχος', full: 'Πλήρης οθόνη', home: 'Πίσω στα παιχνίδια',
+    padA: 'Ικανότητα 1', padB: 'Ικανότητα 2', padS: 'Σούπερ', padC: 'Ασπίδα', padF: 'Φαγητό', padE: 'Μπες',
+    langBtn: 'EN', langLabel: 'EN English' },
+  en: { play: '▶ Play', keysShort: 'Arrows or WASD: move · 1 2: abilities · 3: shield · 4: food · Space: super · E: enter · P: pause',
+    who: 'Who is playing?', del: 'Delete', delSure: 'Sure? Delete', monsters: 'Monsters ', battles: ' · Battles ', playTime: 'Play time ',
+    cont: 'Continue', empty: 'Empty slot ', makeHero: 'Make a new hero', newGame: 'New game', back: '← Back',
+    whichHero: 'Which hero will you get ready?', namePh: 'e.g. Electra', start: 'Start the adventure →', heroName: 'What is the hero\'s name?',
+    story: 'The story', ready: 'Let\'s get ready! →',
+    pauseH: '⏸ Pause', keysLong: 'Arrows or WASD: move · 1 and 2: weapon abilities · 3: shield · 4: eat something · Space: super attack · E: enter (house, boat, gate). The weapon strikes by itself when you are near a monster.',
+    resume: '▶ Continue', save: '💾 Save', saved: 'Saved ✓', noSave: 'This device does not keep saves', goHome: '🏡 Go home', startScreen: 'Start screen',
+    tiredH: 'Oh! You got tired...', homeNow: '🏡 Let\'s go home', explore: 'Keep exploring',
+    theme_auto: '🌗 Theme: auto', theme_light: '☀️ Theme: light', theme_dark: '🌙 Theme: dark', lowFx: '✨ Fewer effects',
+    gfx: '🎨 Graphics: ', gfx_auto: 'Auto', gfx_normal: 'Normal', gfx_rich: 'Rich',
+    house: 'My house', random: '🎲 Random', out: '🚪 Go out to the city', rotate: 'Turn the device sideways to play!',
+    pause: 'Pause', sound: 'Sound', full: 'Full screen', home: 'Back to the games',
+    padA: 'Ability 1', padB: 'Ability 2', padS: 'Super', padC: 'Shield', padF: 'Food', padE: 'Enter',
+    langBtn: 'ΕΛ', langLabel: 'ΕΛ Ελληνικά' },
+};
+const Lang = { pick: 'el' };
+try { Lang.pick = localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'el'; } catch (e) { Lang.pick = 'el'; }
+const tr = k => (I18N[Lang.pick] || I18N.el)[k];
+function applyLang() { // the static shell; the menus are built with tr() each time they open
+  document.documentElement.lang = Lang.pick;
+  for (const n of document.querySelectorAll('[data-t]')) n.textContent = tr(n.dataset.t);
+  for (const n of document.querySelectorAll('[data-ta]')) n.setAttribute('aria-label', tr(n.dataset.ta));
+}
+function nextLang() { Lang.pick = Lang.pick === 'en' ? 'el' : 'en'; try { localStorage.setItem(LANG_KEY, Lang.pick); } catch (e) { /* this visit only */ } applyLang(); }
+const themeLabel = () => tr('theme_' + Settings.theme);
 function cycleTheme() { Settings.theme = { auto: 'light', light: 'dark', dark: 'auto' }[Settings.theme]; saveSettings(); applyTheme(); }
 function setLowFx(on, auto) { Settings.lowFx = on; if (auto) Settings.autoLowFx = true; saveSettings(); INK = on ? INK_OFF : INK_ON; TreeArt.map.clear(); }
-/* Theme + «Λιγότερα εφέ» buttons, on the title and pause screens. */
+/* «🎨 Γραφικά»: the label names the choice; with «Αυτόματα» also the tier it gives now, e.g. «Αυτόματα (Κανονικά)». */
+const gfxLabel = () => tr('gfx') + (Tier.pick === 'auto'
+  ? tr('gfx_auto') + ' (' + tr(tierOf(Tier.pick, Tier.slow) === 'b' ? 'gfx_rich' : 'gfx_normal') + ')' : tr('gfx_' + Tier.pick));
+function saveTier() { try { localStorage.setItem(GFX_KEY, JSON.stringify({ pick: Tier.pick, slow: Tier.slow })); } catch (e) { /* this visit only */ } }
+function applyTier() {
+  if (!CONFIG.gfx) GFX.b = tierOf(Tier.pick, Tier.slow) === 'b';
+  const b = $('bGfx'); if (b) b.textContent = gfxLabel();
+}
+/* The button cycles Αυτόματα → Κανονικά → Πλούσια → Αυτόματα; choosing «Αυτόματα» again measures this device anew. */
+function nextGfx() { Tier.pick = { auto: 'normal', normal: 'rich', rich: 'auto' }[Tier.pick]; Tier.slow = false; Tier.gaps.length = 0; saveTier(); applyTier(); }
+/* Theme + «Λιγότερα εφέ» + «🎨 Γραφικά» + language buttons, on the title and pause screens. */
 function settingsRow() {
-  const th = btn(THEME_LABEL[Settings.theme], () => { cycleTheme(); th.textContent = THEME_LABEL[Settings.theme]; }, 'ghost');
-  const fxb = btn('✨ Λιγότερα εφέ', () => { setLowFx(!Settings.lowFx); fxb.setAttribute('aria-pressed', String(Settings.lowFx)); }, 'ghost');
-  th.id = 'bTheme'; fxb.id = 'bLowFx'; fxb.setAttribute('aria-pressed', String(Settings.lowFx));
-  return el('div', { class: 'row settings' }, [th, fxb]);
+  const th = btn(themeLabel(), () => { cycleTheme(); th.textContent = themeLabel(); }, 'ghost');
+  const fxb = btn(tr('lowFx'), () => { setLowFx(!Settings.lowFx); fxb.setAttribute('aria-pressed', String(Settings.lowFx)); }, 'ghost');
+  const gb = btn(gfxLabel(), nextGfx, 'ghost');
+  const lb = btn(tr('langBtn'), () => { nextLang(); if (curScreen) showScreen(curScreen); const b = $('bLang'); if (b) b.focus(); }, 'ghost');
+  th.id = 'bTheme'; fxb.id = 'bLowFx'; gb.id = 'bGfx'; lb.id = 'bLang'; fxb.setAttribute('aria-pressed', String(Settings.lowFx));
+  lb.setAttribute('aria-label', tr('langLabel')); lb.lang = Lang.pick === 'en' ? 'el' : 'en';
+  return el('div', { class: 'row settings' }, [th, fxb, gb, lb]);
 }
 
 /* ============================================================
@@ -1810,6 +1909,59 @@ function grassSprites() {
    park, parking, castle floor), each drawn only where the view is. A cache of ground tiles was measured and dropped:
    drawing a new tile cost more, while walking, than copying the tiles saved. The lake, the fountain, the docks and
    the boats follow. */
+/* Tier Β (GAMES-GRAPHICS §1): materials made with code, once, the first time the ground is drawn (no image files, no
+   network): 128x128 tileable tiles of light and dark flecks with alpha (value noise that wraps at the tile edge) for
+   asphalt, paving stones, sand and grass. Each surface (roads, parking, promenade, plaza, park, the beaches of the lake
+   and the island, the island's lawn) is filled once with a pattern of its material laid over its own colour, instead
+   of the flat colour: one fill as before. The open meadow and the open water keep their look: a pattern over the whole
+   screen cost too much frame time in software drawing (measured, tests/frametime.spec.ts). MAT_SCALE: world units
+   per tile pixel. GFX.texMs is the real drawing time of the tiles (after a one-pixel read). */
+const Mat = { tiles: null, pats: null, ctx: null };
+function matNoise(r, n) { // n x n lattice of random values, read smoothly and wrapping
+  const g = new Float32Array(n * n); for (let i = 0; i < g.length; i++) g[i] = r();
+  const sm = t => t * t * (3 - 2 * t);
+  return (x, y) => { // x, y in 0..1
+    const fx = x * n, fy = y * n, x0 = Math.floor(fx) % n, y0 = Math.floor(fy) % n, x1 = (x0 + 1) % n, y1 = (y0 + 1) % n, tx = sm(fx - Math.floor(fx)), ty = sm(fy - Math.floor(fy));
+    return lerp(lerp(g[y0 * n + x0], g[y0 * n + x1], tx), lerp(g[y1 * n + x0], g[y1 * n + x1], tx), ty);
+  };
+}
+function matTile(seed, px) { // px(r, x, y, n1, n2) -> [r, g, b, a] for each pixel
+  const N = 128, c = paintCanvas(N, N), x = c.getContext('2d'), d = x.createImageData(N, N), r = seeded(seed), lo = matNoise(r, 8), hi = matNoise(r, 32);
+  for (let y = 0; y < N; y++) for (let i = 0; i < N; i++) { const o = (y * N + i) * 4, v = px(r, i, y, lo(i / N, y / N), hi(i / N, y / N)); d.data[o] = v[0]; d.data[o + 1] = v[1]; d.data[o + 2] = v[2]; d.data[o + 3] = v[3]; }
+  x.putImageData(d, 0, 0); return c;
+}
+const fleck = (light, dark, k) => (r, i, y, a, b) => { const v = a * .6 + b * .4 - .5 + (r() - .5) * .25; return v > 0 ? [...light, Math.min(255, v * k)] : [...dark, Math.min(255, -v * k)]; };
+function matTiles() {
+  if (Mat.tiles) return Mat.tiles;
+  const t0 = performance.now();
+  Mat.tiles = {
+    grass: matTile(11, (r, i, y, a, b) => { const v = a * .55 + b * .45 - .5; if (r() < .035) return [236, 255, 196, 120]; return v > 0 ? [226, 250, 180, Math.min(255, v * 260)] : [36, 82, 30, Math.min(255, -v * 300)]; }),
+    asphalt: matTile(12, (r, i, y, a, b) => { const s = r(); if (s < .06) return [235, 230, 245, 55]; if (s < .12) return [20, 16, 34, 70]; const v = a * .7 + b * .3 - .5; return v > 0 ? [200, 196, 220, v * 120] : [18, 14, 32, -v * 150]; }),
+    paving: matTile(13, (r, i, y, a, b) => { // stones 32 x 16 in running bond, dark joints, a tone per stone
+      const row = y >> 4, sx = (i + (row & 1) * 16) & 31, sy = y & 15;
+      if (sx === 0 || sy === 0) return [92, 70, 52, 120];
+      const tone = ((Math.imul(row + 7, 2654435761) ^ Math.imul(((i + (row & 1) * 16) >> 5) + 3, 40503)) >>> 0) % 5;
+      const v = (tone - 2) * .09 + (b - .5) * .22; return v > 0 ? [255, 248, 228, v * 230] : [110, 84, 60, -v * 200];
+    }),
+    sand: matTile(14, fleck([255, 248, 222], [150, 116, 70], 300)),
+  };
+  for (const k in Mat.tiles) Mat.tiles[k].getContext('2d').getImageData(0, 0, 1, 1); // the drawing really done
+  GFX.texMs = +(performance.now() - t0).toFixed(1); GFX.texBuilds++;
+  return Mat.tiles;
+}
+const MAT_SCALE = { grass: 2, asphalt: .8, paving: 1, sand: 1 }; // world units per tile pixel
+/* The fill of a surface: with tier Β one pattern of the material laid over the surface's own colour (made once per
+   material and colour), so the surface costs one fill as before; without it the plain colour. */
+function matFill(c, k, base) {
+  if (!GFX.b) return base;
+  if (Mat.ctx !== c) { Mat.ctx = c; Mat.pats = {}; }
+  const key = k + base; let p = Mat.pats[key];
+  if (!p) {
+    const t = matTiles()[k], m = paintCanvas(t.width, t.height), x = m.getContext('2d'); x.fillStyle = base; x.fillRect(0, 0, m.width, m.height); x.drawImage(t, 0, 0);
+    p = Mat.pats[key] = c.createPattern(m, 'repeat'); const s = MAT_SCALE[k]; p.setTransform(new DOMMatrix([s, 0, 0, s, 0, 0]));
+  }
+  return p;
+}
 function groundStatic(c, v) {
   const hit = (x, y, w, h) => x < v.x1 + 20 && x + w > v.x0 - 20 && y < v.y1 + 20 && y + h > v.y0 - 20; // draw only what the tile shows
   c.fillStyle = '#9fd075'; c.fillRect(v.x0, v.y0, v.x1 - v.x0, v.y1 - v.y0);
@@ -1831,27 +1983,27 @@ function groundStatic(c, v) {
   }
   // roads, promenade, plaza, park, parking, castle floor
   if (hit(PROMENADE.x, PROMENADE.y, PROMENADE.w, PROMENADE.h)) {
-    c.fillStyle = '#e6d6b2'; rr(c, PROMENADE.x, PROMENADE.y, PROMENADE.w, PROMENADE.h, 30); c.fill(); c.strokeStyle = 'rgba(42,31,69,.45)'; c.lineWidth = 1.4; c.stroke();
+    c.fillStyle = matFill(c, 'paving', '#e6d6b2'); rr(c, PROMENADE.x, PROMENADE.y, PROMENADE.w, PROMENADE.h, 30); c.fill(); c.strokeStyle = 'rgba(42,31,69,.45)'; c.lineWidth = 1.4; c.stroke();
   }
   // curbs first (a light kerb with an outline), then every road on top, so the crossings stay clean
   ROADS.forEach(r => { if (r.path || !hit(r.x - 4, r.y - 4, r.w + 8, r.h + 8)) return; c.fillStyle = '#d9d0e6'; rr(c, r.x - 4, r.y - 4, r.w + 8, r.h + 8, 13); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke(); });
   ROADS.forEach(r => {
     if (!hit(r.x, r.y, r.w, r.h)) return;
-    c.fillStyle = r.path ? '#d9c08f' : '#5C5574'; rr(c, r.x, r.y, r.w, r.h, r.path ? 22 : 10); c.fill();
+    c.fillStyle = r.path ? matFill(c, 'sand', '#d9c08f') : matFill(c, 'asphalt', '#5C5574'); rr(c, r.x, r.y, r.w, r.h, r.path ? 22 : 10); c.fill();
     if (r.path) { c.strokeStyle = 'rgba(42,31,69,.4)'; c.lineWidth = 1.2; c.stroke(); }
     if (r.lanes) { c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 3; c.setLineDash([22, 18]); c.beginPath(); if (r.lanes === 'h') { c.moveTo(r.x + 10, r.y + r.h / 2); c.lineTo(r.x + r.w - 10, r.y + r.h / 2); } else { c.moveTo(r.x + r.w / 2, r.y + 10); c.lineTo(r.x + r.w / 2, r.y + r.h - 10); } c.stroke(); c.setLineDash([]); }
   });
   if (hit(PLAZA.x, PLAZA.y, PLAZA.w, PLAZA.h)) {
-    c.fillStyle = '#ead9b6'; rr(c, PLAZA.x, PLAZA.y, PLAZA.w, PLAZA.h, 18); c.fill(); c.strokeStyle = 'rgba(42,31,69,.5)'; c.lineWidth = 1.4; c.stroke();
+    c.fillStyle = matFill(c, 'paving', '#ead9b6'); rr(c, PLAZA.x, PLAZA.y, PLAZA.w, PLAZA.h, 18); c.fill(); c.strokeStyle = 'rgba(42,31,69,.5)'; c.lineWidth = 1.4; c.stroke();
     c.strokeStyle = 'rgba(160,130,90,.25)'; c.lineWidth = 1.5; for (let x = PLAZA.x + 20; x < PLAZA.x + PLAZA.w; x += 26) { c.beginPath(); c.moveTo(x, PLAZA.y + 6); c.lineTo(x, PLAZA.y + PLAZA.h - 6); c.stroke(); }
   }
   if (hit(PARK.x, PARK.y, PARK.w, PARK.h)) {
-    c.fillStyle = '#8cc566'; rr(c, PARK.x, PARK.y, PARK.w, PARK.h, 30); c.fill(); c.strokeStyle = 'rgba(70,120,50,.6)'; c.lineWidth = 3; c.stroke();
+    c.fillStyle = matFill(c, 'grass', '#8cc566'); rr(c, PARK.x, PARK.y, PARK.w, PARK.h, 30); c.fill(); c.strokeStyle = 'rgba(70,120,50,.6)'; c.lineWidth = 3; c.stroke();
     c.strokeStyle = '#e6d6b2'; c.lineWidth = 16; c.beginPath(); c.moveTo(PARK.x + 20, PARK.y + 60); c.quadraticCurveTo(PARK.x + 160, PARK.y + 260, PARK.x + PARK.w - 20, PARK.y + PARK.h - 60); c.stroke();
   }
   if (hit(PARKING.x - 4, PARKING.y - 4, PARKING.w + 8, PARKING.h + 8)) {
     c.fillStyle = '#d9d0e6'; rr(c, PARKING.x - 4, PARKING.y - 4, PARKING.w + 8, PARKING.h + 8, 15); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke();
-    c.fillStyle = '#7a7290'; rr(c, PARKING.x, PARKING.y, PARKING.w, PARKING.h, 12); c.fill();
+    c.fillStyle = matFill(c, 'asphalt', '#7a7290'); rr(c, PARKING.x, PARKING.y, PARKING.w, PARKING.h, 12); c.fill();
     c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 2; for (let x = PARKING.x + 30; x < PARKING.x + PARKING.w - 20; x += 46) { c.beginPath(); c.moveTo(x, PARKING.y + 10); c.lineTo(x, PARKING.y + 60); c.moveTo(x, PARKING.y + PARKING.h - 60); c.lineTo(x, PARKING.y + PARKING.h - 10); c.stroke(); }
   }
   if (hit(CASTLE.x, CASTLE.y, CASTLE.w, CASTLE.h)) {
@@ -1864,6 +2016,45 @@ function groundStatic(c, v) {
     c.strokeStyle = '#3a86ff'; c.beginPath(); c.moveTo(600, 1960); c.lineTo(640, 1920); c.stroke();
   }
 }
+/* Tier Α on the water (GAMES-GRAPHICS §1): the lake takes the light. The key light comes from the top left (as on
+   the baked sprites, finish()), so the sun (or the moon) shines on the far, top-left water and the near, bottom-right
+   water lies in the shade; the island throws a soft shadow on the water along the light, long at sunset. The three
+   water (its two colours, which follow the sky) and the three light layers are painted into one small canvas (a
+   quarter of the lake's size, soft gradients only, clipped to the lake) whenever the mood or the water colours change,
+   and copied with one drawImage per frame, which replaces the two fills of the plain water: three more full-lake fills
+   per frame halved the frame rate in software drawing (CI, tests/frametime.spec.ts). */
+const Lit = { mood: '', key: '', cv: null, bakes: 0 };
+const LIT_SUN = { day: ['rgba(255,252,230,.55)', 'rgba(255,248,214,0)'], sunset: ['rgba(255,190,120,.6)', 'rgba(255,150,90,0)'],
+  night: ['rgba(214,224,255,.35)', 'rgba(190,205,255,0)'] };
+const LIT_SCALE = .25;
+function bakeLakeLight(w0, w1) {
+  Lit.mood = Paint.mood; Lit.bakes++;
+  const S = LIT_SCALE, cv = Lit.cv || (Lit.cv = paintCanvas(LAKE.rx * 2 * S, LAKE.ry * 2 * S)), c = cv.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
+  c.setTransform(S, 0, 0, S, -(LAKE.x - LAKE.rx) * S, -(LAKE.y - LAKE.ry) * S);
+  ell(c, LAKE.x, LAKE.y, LAKE.rx, LAKE.ry); c.clip();
+  const lg = c.createLinearGradient(LAKE.x - LAKE.rx, 0, LAKE.x + LAKE.rx, 0); lg.addColorStop(0, w0); lg.addColorStop(1, w1); // the water
+  c.fillStyle = lg; c.fillRect(LAKE.x - LAKE.rx, LAKE.y - LAKE.ry, LAKE.rx * 2, LAKE.ry * 2);
+  c.fillStyle = 'rgba(24,84,140,.12)'; ell(c, LAKE.x + 40, LAKE.y + 60, LAKE.rx * .62, LAKE.ry * .66); c.fill(); // deeper middle
+  const h = c.createLinearGradient(LAKE.x - LAKE.rx, LAKE.y - LAKE.ry, LAKE.x + LAKE.rx, LAKE.y + LAKE.ry); // the shade side of the basin
+  h.addColorStop(0, 'rgba(18,44,96,0)'); h.addColorStop(.55, 'rgba(18,44,96,0)'); h.addColorStop(1, `rgba(18,44,96,${Paint.mood === 'night' ? .34 : .26})`);
+  c.fillStyle = h; c.fillRect(LAKE.x - LAKE.rx, LAKE.y - LAKE.ry, LAKE.rx * 2, LAKE.ry * 2);
+  const L = Paint.P.shadowLen, ix = ISLAND.x + 40 * L, iy = ISLAND.y + 40 * L, r = ISLAND.r + 60 + 30 * (L - 1); // the island's shadow on the water
+  const q = c.createRadialGradient(ix, iy, ISLAND.r * .6, ix, iy, r); q.addColorStop(0, `rgba(16,40,86,${(Paint.P.shadowA * .8).toFixed(3)})`); q.addColorStop(1, 'rgba(16,40,86,0)');
+  c.fillStyle = q; circ(c, ix, iy, r); c.fill();
+  const U = LIT_SUN[Paint.mood] || LIT_SUN.day, sx = LAKE.x - LAKE.rx * .35, sy = LAKE.y - LAKE.ry * .48; // sun / moon on the far water
+  const g = c.createRadialGradient(sx, sy, 10, sx, sy, LAKE.rx * .95); g.addColorStop(0, U[0]); g.addColorStop(.35, U[0].replace(/[\d.]+\)$/, m => (parseFloat(m) * .35).toFixed(3) + ')')); g.addColorStop(1, U[1]);
+  c.fillStyle = g; c.fillRect(LAKE.x - LAKE.rx, LAKE.y - LAKE.ry, LAKE.rx * 2, LAKE.ry * 2);
+}
+function lakeLight(c, w0, w1) {
+  const key = Paint.mood + w0 + w1; if (key !== Lit.key || !Lit.cv) { Lit.key = key; bakeLakeLight(w0, w1); }
+  c.drawImage(Lit.cv, LAKE.x - LAKE.rx, LAKE.y - LAKE.ry, LAKE.rx * 2, LAKE.ry * 2);
+}
+function islandLight(c) { // the island lit from the top left: a lighter crown, a shade on the bottom-right slope
+  const g = c.createLinearGradient(ISLAND.x - ISLAND.r, ISLAND.y - ISLAND.r, ISLAND.x + ISLAND.r, ISLAND.y + ISLAND.r);
+  g.addColorStop(0, rgbaOf(Paint.P.key, Paint.P.keyA * .8)); g.addColorStop(.5, rgbaOf(Paint.P.key, 0)); g.addColorStop(.55, rgbaOf(Paint.P.shade, 0)); g.addColorStop(1, rgbaOf(Paint.P.shade, Paint.P.shadeA));
+  c.fillStyle = g; circ(c, ISLAND.x, ISLAND.y, ISLAND.r); c.fill();
+}
 function drawGround(c, v, t) {
   groundStatic(c, v);
   // live layers on top: the lake (clipped right of the promenade), the fountain, the docks and the boats
@@ -1871,19 +2062,25 @@ function drawGround(c, v, t) {
     c.save(); c.beginPath(); c.rect(PROMENADE.x + PROMENADE.w, 0, WORLD.w, WORLD.h); c.clip();
   // lake: day turquoise, it takes the sky's colours at sunset and night
   const sk = Math.max(Sky.dark, Sky.warm * .7);
-  c.fillStyle = '#e9dba9'; ell(c, LAKE.x, LAKE.y, LAKE.rx + 14, LAKE.ry + 14); c.fill();
-  const lg = c.createLinearGradient(LAKE.x - LAKE.rx, 0, LAKE.x + LAKE.rx, 0); lg.addColorStop(0, hexMix('#8EDDF2', Sky.hor, sk * .55)); lg.addColorStop(1, hexMix('#3E9BCB', Sky.mid, sk * .7));
-  c.fillStyle = lg; ell(c, LAKE.x, LAKE.y, LAKE.rx, LAKE.ry); c.fill();
-  c.fillStyle = 'rgba(24,84,140,.12)'; ell(c, LAKE.x + 40, LAKE.y + 60, LAKE.rx * .62, LAKE.ry * .66); c.fill(); // deeper middle
+  // the beach: only the ring the water leaves (a pattern under the whole lake would be drawn for nothing)
+  c.fillStyle = matFill(c, 'sand', '#e9dba9'); ell(c, LAKE.x, LAKE.y, LAKE.rx + 14, LAKE.ry + 14); c.ellipse(LAKE.x, LAKE.y, LAKE.rx - 2, LAKE.ry - 2, 0, 0, TAU); c.fill('evenodd');
+  const w0 = hexMix('#8EDDF2', Sky.hor, sk * .55), w1 = hexMix('#3E9BCB', Sky.mid, sk * .7);
+  if (GFX.a) lakeLight(c, w0, w1); // the water with its light, painted once per colour change: one copy per frame
+  else {
+    const lg = c.createLinearGradient(LAKE.x - LAKE.rx, 0, LAKE.x + LAKE.rx, 0); lg.addColorStop(0, w0); lg.addColorStop(1, w1);
+    c.fillStyle = lg; ell(c, LAKE.x, LAKE.y, LAKE.rx, LAKE.ry); c.fill();
+    c.fillStyle = 'rgba(24,84,140,.12)'; ell(c, LAKE.x + 40, LAKE.y + 60, LAKE.rx * .62, LAKE.ry * .66); c.fill(); // deeper middle
+  }
   // foam along the shore; it creeps slowly (stands still with reduced motion)
   c.save(); c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 5; c.setLineDash([26, 14, 8, 14]); c.lineDashOffset = calm() ? 0 : -t * 6;
   ell(c, LAKE.x, LAKE.y, LAKE.rx - 5, LAKE.ry - 5); c.stroke(); c.restore();
   c.strokeStyle = INK; c.lineWidth = 1.4; ell(c, LAKE.x, LAKE.y, LAKE.rx + 14, LAKE.ry + 14); c.stroke();
   c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 2;
   for (let i = 0; i < 26; i++) { const x = LAKE.x - 380 + (i * 137) % 760, y = LAKE.y - 760 + (i * 211) % 1520; if (!inLake(x, y, 30) || dist(x, y, ISLAND.x, ISLAND.y) < ISLAND.r + 20) continue; const o = Math.sin(t * 1.5 + i) * 6; c.beginPath(); c.moveTo(x - 14 + o, y); c.quadraticCurveTo(x + o, y - 5, x + 14 + o, y); c.stroke(); }
-  c.fillStyle = '#e9dba9'; circ(c, ISLAND.x, ISLAND.y, ISLAND.r + 12); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke();
+  c.fillStyle = matFill(c, 'sand', '#e9dba9'); circ(c, ISLAND.x, ISLAND.y, ISLAND.r + 12); c.arc(ISLAND.x, ISLAND.y, ISLAND.r - 2, 0, TAU); c.fill('evenodd'); circ(c, ISLAND.x, ISLAND.y, ISLAND.r + 12); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke();
   c.save(); c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 4; c.setLineDash([20, 12]); c.lineDashOffset = calm() ? 0 : t * 5; circ(c, ISLAND.x, ISLAND.y, ISLAND.r + 18); c.stroke(); c.restore();
-  c.fillStyle = '#a7d77c'; circ(c, ISLAND.x, ISLAND.y, ISLAND.r); c.fill();
+  c.fillStyle = matFill(c, 'grass', '#a7d77c'); circ(c, ISLAND.x, ISLAND.y, ISLAND.r); c.fill();
+  if (GFX.a) islandLight(c);
     c.restore();
   }
   if (v.x1 > PLAZA.x && v.x0 < PLAZA.x + PLAZA.w && v.y1 > PLAZA.y && v.y0 < PLAZA.y + PLAZA.h) drawFountain(c, t);
@@ -1902,10 +2099,10 @@ function drawGround(c, v, t) {
 }
 const boatBob = t => Math.sin(t * 2) * 2;
 function hullPath(c, x, y) { c.beginPath(); c.moveTo(x - 36, y - 8); c.lineTo(x + 36, y - 8); c.lineTo(x + 26, y + 10); c.lineTo(x - 26, y + 10); c.closePath(); }
-function drawBoat(c, x, y, t) { const b = boatBob(t); c.fillStyle = 'rgba(20,60,110,.18)'; ell(c, x, y + 12, 34, 6); c.fill(); hullPath(c, x, y + b); c.fillStyle = '#f7f7fb'; c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke(); c.fillStyle = '#FF6FAE'; c.fillRect(x - 31, y - 2 + b, 62, 4); c.fillStyle = '#39a0d8'; c.fillRect(x - 6, y - 26 + b, 12, 16); }
+function drawBoat(c, x, y, t) { const b = boatBob(t); if (GFX.a && paintOn()) castShadow(c, x + 4, y + 12, 64, .8); else { c.fillStyle = 'rgba(20,60,110,.18)'; ell(c, x, y + 12, 34, 6); c.fill(); } hullPath(c, x, y + b); c.fillStyle = '#f7f7fb'; c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke(); c.fillStyle = '#FF6FAE'; c.fillRect(x - 31, y - 2 + b, 62, 4); c.fillStyle = '#39a0d8'; c.fillRect(x - 6, y - 26 + b, 12, 16); }
 function drawFountain(c, t) {
   const F = FOUNTAIN;
-  c.fillStyle = 'rgba(0,0,0,.15)'; ell(c, F.x + 4, F.y + 6, F.r + 4, F.r * .55 + 4); c.fill();
+  if (GFX.a && paintOn()) castShadow(c, F.x + 6, F.y + 6, F.r * 2.1); else { c.fillStyle = 'rgba(0,0,0,.15)'; ell(c, F.x + 4, F.y + 6, F.r + 4, F.r * .55 + 4); c.fill(); }
   c.fillStyle = '#e7dcc8'; ell(c, F.x, F.y, F.r, F.r * .62); c.fill();
   c.fillStyle = hexMix('#8EDDF2', Sky.mid, Math.max(Sky.dark, Sky.warm * .7) * .6); ell(c, F.x, F.y, F.r - 6, F.r * .62 - 5); c.fill();
   c.fillStyle = '#d6cbb3'; rr(c, F.x - 4, F.y - 22, 8, 22, 3); c.fill();
@@ -3020,62 +3217,62 @@ function showScreen(name, data) {
     setMode('title'); music('title');
     card.classList.add('plate'); // translucent plate: the text stays readable over the city by day and by night
     card.append(logo(),
-      el('p', { class: 'sub', text: 'Ντύσε τον ήρωά σου, βγες στην πόλη της λίμνης και βρες τα πέντε τέρατα που κρύβονται στα στενά της. Μετά, ψάξε τη μαγική πύλη για να γυρίσεις σπίτι.' }),
-      el('div', { class: 'row' }, [btn('▶ Παίξε', () => { openSlots(); })]), settingsRow(),
-      el('p', { class: 'toastline', text: 'Βελάκια ή WASD: κίνηση · 1 2: ικανότητες · 3: ασπίδα · 4: φαγητό · Space: σούπερ · E: μπες · P: παύση' }));
+      el('p', { class: 'sub', lang: 'el', text: 'Ντύσε τον ήρωά σου, βγες στην πόλη της λίμνης και βρες τα πέντε τέρατα που κρύβονται στα στενά της. Μετά, ψάξε τη μαγική πύλη για να γυρίσεις σπίτι.' }),
+      el('div', { class: 'row' }, [btn(tr('play'), () => { openSlots(); })]), settingsRow(),
+      el('p', { class: 'toastline', text: tr('keysShort') }));
   }
   if (name === 'slots') {
-    card.appendChild(el('h2', { text: 'Ποιος παίζει;' }));
+    card.appendChild(el('h2', { text: tr('who') }));
     if (Server.on && Server.state !== 'off') card.appendChild(serverBox());
     const grid = el('div', { class: 'slots' }); card.appendChild(grid);
     const d = Store.read(), owner = Server.owner();
     Store.slots(d, owner).forEach((sl, i) => {
       const box = el('div', { class: 'slot' });
       if (sl) {
-        const del = btn('Σβήσε', () => { if (del.dataset.sure) { const dd = Store.read(); Store.slots(dd, owner)[i] = null; Store.markDirty(dd, owner, i); Store.write(dd); Server.push(owner, i); showScreen('slots'); } else { del.dataset.sure = '1'; del.textContent = 'Σίγουρα; Σβήσε'; del.className = 'danger'; } }, 'ghost');
+        const del = btn(tr('del'), () => { if (del.dataset.sure) { const dd = Store.read(); Store.slots(dd, owner)[i] = null; Store.markDirty(dd, owner, i); Store.write(dd); Server.push(owner, i); showScreen('slots'); } else { del.dataset.sure = '1'; del.textContent = tr('delSure'); del.className = 'danger'; } }, 'ghost');
         box.append(portrait(sl.look, 120), el('div', { class: 'nm', text: sl.name }),
-          el('div', { class: 'pg', text: 'Τέρατα ' + sl.bosses.length + '/5 · Μάχες ' + (sl.bosses.length + sl.minis.length) + '/20' + (sl.finished ? ' · 🏆' : '') }),
-          el('div', { class: 'pg', text: 'Χρόνος παιχνιδιού ' + fmtTime(sl.playMs || 0) }),
-          el('div', { class: 'row' }, [btn('Συνέχεια', () => loadSlot(i)), del]));
+          el('div', { class: 'pg', text: tr('monsters') + sl.bosses.length + '/5' + tr('battles') + (sl.bosses.length + sl.minis.length) + '/20' + (sl.finished ? ' · 🏆' : '') }),
+          el('div', { class: 'pg', text: tr('playTime') + fmtTime(sl.playMs || 0) }),
+          el('div', { class: 'row' }, [btn(tr('cont'), () => loadSlot(i)), del]));
       } else {
         const [c, x] = canvasOf(120, 120); x.fillStyle = '#271d45'; circ(x, 60, 60, 60); x.fill(); x.fillStyle = '#43356f'; x.font = '700 54px Comfortaa, sans-serif'; x.textAlign = 'center'; x.fillText('?', 60, 78);
-        box.append(c, el('div', { class: 'nm', text: 'Κενή θέση ' + (i + 1) }), el('div', { class: 'pg', text: 'Φτιάξε νέο ήρωα' }), btn('Νέο παιχνίδι', () => showScreen('create', { slot: i })));
+        box.append(c, el('div', { class: 'nm', text: tr('empty') + (i + 1) }), el('div', { class: 'pg', text: tr('makeHero') }), btn(tr('newGame'), () => showScreen('create', { slot: i })));
       }
       grid.appendChild(box);
     });
-    card.appendChild(el('div', { class: 'row', style: 'margin-top:16px' }, [btn('← Πίσω', () => showScreen('title'), 'ghost')]));
+    card.appendChild(el('div', { class: 'row', style: 'margin-top:16px' }, [btn(tr('back'), () => showScreen('title'), 'ghost')]));
   }
   if (name === 'create') {
     let gender = 'girl';
-    card.appendChild(el('h2', { text: 'Ποιον ήρωα θα ετοιμάσεις;' }));
+    card.appendChild(el('h2', { text: tr('whichHero') }));
     const pickRow = el('div', { class: 'pick' });
     const mk = g => { const [c, x] = canvasOf(150, 170); drawHero(x, defaultLook(g), { x: 75, y: 160, s: 2.2, t: .4 }); const b = el('button', { class: g === gender ? 'on' : '', on: { click: () => { gender = g; sfx('click'); [...pickRow.children].forEach(ch => ch.classList.toggle('on', ch === b)); } } }, [c, el('span', { text: g === 'girl' ? 'Κορίτσι' : 'Αγόρι' })]); return b; };
     pickRow.append(mk('girl'), mk('boy')); card.appendChild(pickRow);
-    const inp = el('input', { id: 'heroName', maxlength: '14', autocomplete: 'off', placeholder: 'π.χ. Ηλέκτρα' });
-    const go = btn('Ξεκίνα την περιπέτεια →', () => { const nm = inp.value.trim(); if (!nm) { inp.focus(); return; } G.slot = data.slot; G.owner = Server.owner(); G.S = newSave(nm, gender); saveGame(false); showScreen('intro'); });
+    const inp = el('input', { id: 'heroName', maxlength: '14', autocomplete: 'off', placeholder: tr('namePh') });
+    const go = btn(tr('start'), () => { const nm = inp.value.trim(); if (!nm) { inp.focus(); return; } G.slot = data.slot; G.owner = Server.owner(); G.S = newSave(nm, gender); saveGame(false); showScreen('intro'); });
     go.disabled = true; inp.addEventListener('input', () => { go.disabled = !inp.value.trim(); });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter' && inp.value.trim()) go.click(); });
-    card.append(el('label', { class: 'f', for: 'heroName', text: 'Πώς λένε τον ήρωα;' }), inp, el('div', { class: 'row', style: 'margin-top:18px' }, [btn('← Πίσω', () => showScreen('slots'), 'ghost'), go]));
+    card.append(el('label', { class: 'f', for: 'heroName', text: tr('heroName') }), inp, el('div', { class: 'row', style: 'margin-top:18px' }, [btn(tr('back'), () => showScreen('slots'), 'ghost'), go]));
     setTimeout(() => { try { inp.focus(); } catch (e) { /* ignore */ } }, 60);
   }
   if (name === 'intro') {
-    card.append(el('h2', { text: 'Η ιστορία' }),
+    card.append(el('h2', { text: tr('story') }),
       el('p', { text: 'Στην πόλη με τη λίμνη, κάτω από τον λόφο, κρύβονται πέντε τέρατα: ο Βραχυντής, η Γατοουρανιοτοξογρίλια, η ΗλιοΛίμνη, το ΣακουλοΦως και ένα πέμπτο που κανείς δεν ξέρει. Μαζί τους κρύβονται και πολλά Σκιουλάκια.' }),
       el('p', { text: 'Τίποτα δεν φαίνεται από μακριά. Ένας σωρός πέτρες, μια σακούλα στο πάρκινγκ, μια πίτα στο γρασίδι... Πλησίασε και θα δεις!' }),
       el('p', { text: 'Κάθε νίκη ανοίγει νέα ρούχα και ένα πιο δυνατό όπλο στο σπίτι σου. Όταν νικήσεις και τα πέντε τέρατα, η μαγική πύλη θα ανοίξει κάπου στην πόλη.' }),
-      el('div', { class: 'row' }, [btn('Πάμε να ετοιμαστώ! →', () => { hideScreen(); goHouse(true); })]));
+      el('div', { class: 'row' }, [btn(tr('ready'), () => { hideScreen(); goHouse(true); })]));
   }
   if (name === 'pause') {
-    card.append(el('h2', { text: '⏸ Παύση' }), el('p', { text: 'Βελάκια ή WASD: κίνηση · 1 και 2: ικανότητες του όπλου · 3: ασπίδα · 4: φάε κάτι · Space: σούπερ επίθεση · E: μπες (σπίτι, βάρκα, πύλη). Το όπλο χτυπά μόνο του όταν είσαι κοντά σε τέρας.' }));
-    const row = el('div', { class: 'row' }, [btn('▶ Συνέχεια', () => togglePause(false)), btn('💾 Αποθήκευση', () => { const ok = saveGame(false); card.querySelector('.toastline').textContent = ok ? 'Αποθηκεύτηκε ✓' : 'Η συσκευή δεν κρατά αποθήκευση'; }, 'ghost')]);
-    if (G.mode === 'city' && !G.fight) row.appendChild(btn('🏡 Πήγαινε σπίτι', () => { togglePause(false); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); }, 'ghost'));
-    row.appendChild(btn('Αρχική οθόνη', () => { saveGame(false); G.paused = false; showScreen('title'); }, 'ghost'));
+    card.append(el('h2', { text: tr('pauseH') }), el('p', { text: tr('keysLong') }));
+    const row = el('div', { class: 'row' }, [btn(tr('resume'), () => togglePause(false)), btn(tr('save'), () => { const ok = saveGame(false); card.querySelector('.toastline').textContent = ok ? tr('saved') : tr('noSave'); }, 'ghost')]);
+    if (G.mode === 'city' && !G.fight) row.appendChild(btn(tr('goHome'), () => { togglePause(false); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); }, 'ghost'));
+    row.appendChild(btn(tr('startScreen'), () => { saveGame(false); G.paused = false; showScreen('title'); }, 'ghost'));
     card.append(row, settingsRow(), el('p', { class: 'toastline', text: '' }));
   }
   if (name === 'lost') {
-    card.append(el('h2', { text: 'Ωχ! Κουράστηκες...' }), el('p', { text: (data.who ? 'Αυτή τη φορά κέρδισε ' + data.who + '. ' : '') + 'Γυρνάς σπίτι να ξεκουραστείς. Δεν χάθηκε τίποτα από όσα έχεις ξεκλειδώσει. Το τέρας κρύφτηκε ξανά στο ίδιο σημείο.' }),
+    card.append(el('h2', { text: tr('tiredH') }), el('p', { text: (data.who ? 'Αυτή τη φορά κέρδισε ' + data.who + '. ' : '') + 'Γυρνάς σπίτι να ξεκουραστείς. Δεν χάθηκε τίποτα από όσα έχεις ξεκλειδώσει. Το τέρας κρύφτηκε ξανά στο ίδιο σημείο.' }),
       el('p', { text: 'Συμβουλή: φόρα πανοπλία, κράτα φαγητό και πάτα 3 για ασπίδα όταν έρχονται πολλά μαζί.' }),
-      el('div', { class: 'row' }, [btn('🏡 Πάμε σπίτι', () => { hideScreen(); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); })]));
+      el('div', { class: 'row' }, [btn(tr('homeNow'), () => { hideScreen(); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); })]));
   }
   if (name === 'end') {
     const fam = G.S.family;
@@ -3083,7 +3280,7 @@ function showScreen(name, data) {
       el('p', { text: 'Νίκησες τα πέντε τέρατα και βρήκες τη μαγική πύλη. Γύρισες σπίτι χωρίς πανοπλία και όπλα, σαν απλό παιδί, και σε περίμεναν όλοι.' }),
       el('div', { class: 'endnames', text: 'Μαμά ' + fam.mom + ' · Μπαμπάς ' + fam.dad + ' · ' + (fam.sibs.length > 1 ? 'Αδέρφια ' : 'Αδερφάκι ') + fam.sibs.join(' και ') + ' · ' + (fam.pet.kind === 'dog' ? 'Σκυλάκι ' : 'Γατούλα ') + fam.pet.name }),
       el('p', { class: 'toastline', text: 'Κρυφές μάχες που κέρδισες: ' + G.S.minis.length + '/15. Όσες έμειναν σε περιμένουν ακόμα στην πόλη!' }),
-      el('div', { class: 'row', style: 'margin-top:12px' }, [btn('Συνέχισε να εξερευνάς', () => { hideScreen(); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); }), btn('Αρχική οθόνη', () => showScreen('title'), 'ghost')]));
+      el('div', { class: 'row', style: 'margin-top:12px' }, [btn(tr('explore'), () => { hideScreen(); G.hero.x = HOME.spawn.x; G.hero.y = HOME.spawn.y; goHouse(); }), btn(tr('startScreen'), () => showScreen('title'), 'ghost')]));
   }
 }
 
@@ -3400,9 +3597,16 @@ function watchFrames(ms) {
   Perf.slow = ms > CONFIG.slowFrameMs ? Perf.slow + ms / 1000 : 0;
   if (Perf.slow > CONFIG.slowFrameSec) { setLowFx(true, true); toast('Λιγότερα εφέ: άναψαν μόνα τους, για να τρέχει πιο γρήγορα', '#6fe3c1'); }
 }
+/* «🎨 Γραφικά: Αυτόματα»: the frame times (gaps between frames, so the drawing cost counts too) on the title screen
+   and while playing; once the median stays over CONFIG.gfxSlowMs for gfxSlowSec, tier Α from now on (stored). */
+function watchTier(raw) {
+  if (Tier.pick !== 'auto' || Tier.slow || CONFIG.gfx || G.paused || document.hidden || (G.mode !== 'title' && G.mode !== 'city')) { Tier.gaps.length = 0; return; }
+  tierTrack(Tier.gaps, CONFIG.fakeFrameMs == null ? raw : CONFIG.fakeFrameMs, CONFIG.gfxSlowSec);
+  if (tierSlow(Tier.gaps, CONFIG.gfxSlowMs, CONFIG.gfxSlowSec)) { Tier.slow = true; Tier.gaps.length = 0; saveTier(); applyTier(); }
+}
 function frame(now) {
   const raw = now - last, dt = Math.min(.05, raw / 1000); last = now;
-  readMove(); watchFrames(raw);
+  readMove(); watchFrames(raw); watchTier(raw);
   try {
     if (G.mode === 'title') { G.time += dt; updateLife(dt); updateSky(dt); }
     else update(dt);
@@ -3429,8 +3633,11 @@ if (TEST) window.__kmDebug = () => ({
     playerFrames: Paint.chars.has(Paint.player) ? Paint.chars.get(Paint.player).frames.size : 0,
     builds: Paint.builds.size, buildMoods: [...new Set([...Paint.builds.values()].map(b => b.mood))],
     bakes: Paint.bakes, bakeMs: Math.round(Paint.bakeMs), fallbacks: Paint.fallbacks, layers: Paint.layers, foreBuilds: Paint.foreBuilds, vigOn: Paint.vigOn },
+  // GAMES-GRAPHICS tiers (Α light and shadow, Β materials) and the light gradients' mood
+  graphics: { a: GFX.a, b: GFX.b, pick: Tier.pick, slow: Tier.slow, tier: tierOf(Tier.pick, Tier.slow), litMood: Lit.mood, litBakes: Lit.bakes, texMs: GFX.texMs, texBuilds: GFX.texBuilds },
 });
 function boot() {
+  applyLang();
   buildWorld(); heroInit(); spawnLife(); resize();
   showScreen('title');
   requestAnimationFrame(frame);

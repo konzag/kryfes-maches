@@ -33,7 +33,7 @@ async function open(page: Page, config: Record<string, unknown> = {}) {
   page.on('console', (m) => { if (m.type() === 'error' && !isApiStatus(m.text(), m.location().url || '')) problems.push(`console: ${m.text()}`); });
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
   await page.addInitScript((cfg) => {
-    (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, forceHour: 12, ...cfg } };
+    (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, gfxSlowMs: 1e9, forceHour: 12, ...cfg } };
     document.addEventListener('securitypolicyviolation', (e) => console.error(`CSP violation: ${e.violatedDirective} ${e.blockedURI}`));
   }, config);
   return problems;

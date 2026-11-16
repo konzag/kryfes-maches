@@ -12,10 +12,6 @@ on:
     branches: [staging, main]
   workflow_dispatch:
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
@@ -38,6 +34,8 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Unit tests (node --test, the pure parts of index.html)
+        run: npm run test:unit
       - name: Secret-name scan (boss 5 never in a repo file, KM-SECRET-01)
         run: node tests/secret-scan.mjs
       - name: Secret-name scan (history)
@@ -53,7 +51,11 @@ jobs:
           npx playwright install chromium
           if [ "$RUNNER_ENVIRONMENT" = "github-hosted" ]; then npx playwright install-deps chromium; fi
       - name: Playwright smoke (keyboard + touch, 0 console errors, hub CSP)
-        run: npx playwright test
+        run: npx playwright test --grep-invert @frametime
+      # GAMES-GRAPHICS §4: the frame-time gate runs alone, so parallel tests do not disturb the measurement
+      # (thresholds in tests/frametime.json; the numbers are in the log line FRAMETIME {...}).
+      - name: Frame-time gate (CPU 4x, p95 vs the look before)
+        run: npx playwright test --grep @frametime --project=tablet --workers=1
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -63,6 +65,26 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+
+  # Plan K9 template check (tools/k9-check.mjs, canonical copy in games-template, copied verbatim): fails when the
+  # game lacks unit tests, Playwright e2e, axe 2.2, a visual baseline, a test floor, EL+EN strings or the README
+  # test guide (GAME-STANDARD §2a). A known gap is report-only only when k9-allowlist.json lists it with a written
+  # reason (a warning in the log); an entry for an item that exists fails (ratchet).
+  k9:
+    name: k9
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: K9 check tests (node --test, no dependencies)
+        run: node --test tools/k9-check.test.mjs
+      - name: K9 template check (k9-allowlist.json = the visible, report-only gaps)
+        run: node tools/k9-check.mjs
 
   gitleaks:
     name: gitleaks
