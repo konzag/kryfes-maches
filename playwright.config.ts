@@ -19,7 +19,8 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
   },
   projects: [
-    { name: 'desktop', use: { viewport: { width: 1280, height: 800 } } },
+    // the frame-time gate (tests/frametime.spec.ts) measures the family tablet only: not listed for the desktop
+    { name: 'desktop', testIgnore: /frametime\.spec\.ts/, use: { viewport: { width: 1280, height: 800 } } },
     {
       name: 'tablet',
       use: { viewport: { width: 1180, height: 820 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- GAMES-GRAPHICS step 1 (L1-26, «before»): `tests/frametime.spec.ts` (@frametime, tablet project, CPU 4x slower via
+  CDP, 10 s in the city per variant, ABBA-interleaved): candidate p95 <= reference p95 + 10 %, and <= 20 ms where the
+  reference meets it; thresholds and the «before» numbers in `tests/frametime.json`. CI runs it alone in its own step.
+  Reference = test config `gfx: 'base'` (the look before GAMES-GRAPHICS; no effect until tier Α). The game does not
+  change. Test-count floor 341 -> 342.
+
 - NIGHT-2 (2026-11-10): CodeQL (`.github/workflows/codeql.yml`: javascript-typescript, which reads the inline
   script of index.html, and actions; buildless, security-extended, GitHub-hosted, actions pinned by SHA) next to
   Semgrep + Gitleaks; `tests/codeql-workflow.spec.ts` keeps it that way. README row KM-68 for the page head and noindex.
