@@ -283,11 +283,15 @@ const CONFIG = {
   ambientMax: 60,                 // ambient life (leaves, lake glints, fireflies): one pool with this cap; 0 = off
   slowFrameMs: 25,                // «Λιγότερα εφέ» switches on by itself (once) when frames stay this slow ...
   slowFrameSec: 3,                // ... for this long
+  gfx: null,                      // tests only (through the test hook): 'base' = the look before GAMES-GRAPHICS, 'a' = tier Α only
 };
 /* Test hook: Playwright sets window.__KM_TEST__ = { config: {...} } with addInitScript before the page loads.
    Nothing a player can reach sets it (no URL parameter, no storage key). */
 const TEST = window.__KM_TEST__ || null;
 if (TEST && TEST.config) Object.assign(CONFIG, TEST.config);
+/* GAMES-GRAPHICS (games-template docs/specs/GAMES-GRAPHICS.md): tier Α light and shadow, tier Β code-made materials,
+   both on by default («Κανονικά»). Only the test hook can switch them off, to measure the look before them. */
+const GFX = { a: CONFIG.gfx !== 'base', b: CONFIG.gfx !== 'base' && CONFIG.gfx !== 'a', texMs: 0, texBuilds: 0 };
 const SAVE_KEY = 'game.' + CONFIG.slug + '.v1';
 const SOUND_KEY = 'game.' + CONFIG.slug + '.sound';
 const SETTINGS_KEY = 'game.' + CONFIG.slug + '.settings.v1'; // shell theme + effects; never inside the save
@@ -1864,6 +1868,45 @@ function groundStatic(c, v) {
     c.strokeStyle = '#3a86ff'; c.beginPath(); c.moveTo(600, 1960); c.lineTo(640, 1920); c.stroke();
   }
 }
+/* Tier Α on the water (GAMES-GRAPHICS §1): the lake takes the light. The key light comes from the top left (as on
+   the baked sprites, finish()), so the sun (or the moon) shines on the far, top-left water and the near, bottom-right
+   water lies in the shade; the island throws a soft shadow on the water along the light, long at sunset. The three
+   water (its two colours, which follow the sky) and the three light layers are painted into one small canvas (a
+   quarter of the lake's size, soft gradients only, clipped to the lake) whenever the mood or the water colours change,
+   and copied with one drawImage per frame, which replaces the two fills of the plain water: three more full-lake fills
+   per frame halved the frame rate in software drawing (CI, tests/frametime.spec.ts). */
+const Lit = { mood: '', key: '', cv: null, bakes: 0 };
+const LIT_SUN = { day: ['rgba(255,252,230,.55)', 'rgba(255,248,214,0)'], sunset: ['rgba(255,190,120,.6)', 'rgba(255,150,90,0)'],
+  night: ['rgba(214,224,255,.35)', 'rgba(190,205,255,0)'] };
+const LIT_SCALE = .25;
+function bakeLakeLight(w0, w1) {
+  Lit.mood = Paint.mood; Lit.bakes++;
+  const S = LIT_SCALE, cv = Lit.cv || (Lit.cv = paintCanvas(LAKE.rx * 2 * S, LAKE.ry * 2 * S)), c = cv.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
+  c.setTransform(S, 0, 0, S, -(LAKE.x - LAKE.rx) * S, -(LAKE.y - LAKE.ry) * S);
+  ell(c, LAKE.x, LAKE.y, LAKE.rx, LAKE.ry); c.clip();
+  const lg = c.createLinearGradient(LAKE.x - LAKE.rx, 0, LAKE.x + LAKE.rx, 0); lg.addColorStop(0, w0); lg.addColorStop(1, w1); // the water
+  c.fillStyle = lg; c.fillRect(LAKE.x - LAKE.rx, LAKE.y - LAKE.ry, LAKE.rx * 2, LAKE.ry * 2);
+  c.fillStyle = 'rgba(24,84,140,.12)'; ell(c, LAKE.x + 40, LAKE.y + 60, LAKE.rx * .62, LAKE.ry * .66); c.fill(); // deeper middle
+  const h = c.createLinearGradient(LAKE.x - LAKE.rx, LAKE.y - LAKE.ry, LAKE.x + LAKE.rx, LAKE.y + LAKE.ry); // the shade side of the basin
+  h.addColorStop(0, 'rgba(18,44,96,0)'); h.addColorStop(.55, 'rgba(18,44,96,0)'); h.addColorStop(1, `rgba(18,44,96,${Paint.mood === 'night' ? .34 : .26})`);
+  c.fillStyle = h; c.fillRect(LAKE.x - LAKE.rx, LAKE.y - LAKE.ry, LAKE.rx * 2, LAKE.ry * 2);
+  const L = Paint.P.shadowLen, ix = ISLAND.x + 40 * L, iy = ISLAND.y + 40 * L, r = ISLAND.r + 60 + 30 * (L - 1); // the island's shadow on the water
+  const q = c.createRadialGradient(ix, iy, ISLAND.r * .6, ix, iy, r); q.addColorStop(0, `rgba(16,40,86,${(Paint.P.shadowA * .8).toFixed(3)})`); q.addColorStop(1, 'rgba(16,40,86,0)');
+  c.fillStyle = q; circ(c, ix, iy, r); c.fill();
+  const U = LIT_SUN[Paint.mood] || LIT_SUN.day, sx = LAKE.x - LAKE.rx * .35, sy = LAKE.y - LAKE.ry * .48; // sun / moon on the far water
+  const g = c.createRadialGradient(sx, sy, 10, sx, sy, LAKE.rx * .95); g.addColorStop(0, U[0]); g.addColorStop(.35, U[0].replace(/[\d.]+\)$/, m => (parseFloat(m) * .35).toFixed(3) + ')')); g.addColorStop(1, U[1]);
+  c.fillStyle = g; c.fillRect(LAKE.x - LAKE.rx, LAKE.y - LAKE.ry, LAKE.rx * 2, LAKE.ry * 2);
+}
+function lakeLight(c, w0, w1) {
+  const key = Paint.mood + w0 + w1; if (key !== Lit.key || !Lit.cv) { Lit.key = key; bakeLakeLight(w0, w1); }
+  c.drawImage(Lit.cv, LAKE.x - LAKE.rx, LAKE.y - LAKE.ry, LAKE.rx * 2, LAKE.ry * 2);
+}
+function islandLight(c) { // the island lit from the top left: a lighter crown, a shade on the bottom-right slope
+  const g = c.createLinearGradient(ISLAND.x - ISLAND.r, ISLAND.y - ISLAND.r, ISLAND.x + ISLAND.r, ISLAND.y + ISLAND.r);
+  g.addColorStop(0, rgbaOf(Paint.P.key, Paint.P.keyA * .8)); g.addColorStop(.5, rgbaOf(Paint.P.key, 0)); g.addColorStop(.55, rgbaOf(Paint.P.shade, 0)); g.addColorStop(1, rgbaOf(Paint.P.shade, Paint.P.shadeA));
+  c.fillStyle = g; circ(c, ISLAND.x, ISLAND.y, ISLAND.r); c.fill();
+}
 function drawGround(c, v, t) {
   groundStatic(c, v);
   // live layers on top: the lake (clipped right of the promenade), the fountain, the docks and the boats
@@ -1872,9 +1915,13 @@ function drawGround(c, v, t) {
   // lake: day turquoise, it takes the sky's colours at sunset and night
   const sk = Math.max(Sky.dark, Sky.warm * .7);
   c.fillStyle = '#e9dba9'; ell(c, LAKE.x, LAKE.y, LAKE.rx + 14, LAKE.ry + 14); c.fill();
-  const lg = c.createLinearGradient(LAKE.x - LAKE.rx, 0, LAKE.x + LAKE.rx, 0); lg.addColorStop(0, hexMix('#8EDDF2', Sky.hor, sk * .55)); lg.addColorStop(1, hexMix('#3E9BCB', Sky.mid, sk * .7));
-  c.fillStyle = lg; ell(c, LAKE.x, LAKE.y, LAKE.rx, LAKE.ry); c.fill();
-  c.fillStyle = 'rgba(24,84,140,.12)'; ell(c, LAKE.x + 40, LAKE.y + 60, LAKE.rx * .62, LAKE.ry * .66); c.fill(); // deeper middle
+  const w0 = hexMix('#8EDDF2', Sky.hor, sk * .55), w1 = hexMix('#3E9BCB', Sky.mid, sk * .7);
+  if (GFX.a) lakeLight(c, w0, w1); // the water with its light, painted once per colour change: one copy per frame
+  else {
+    const lg = c.createLinearGradient(LAKE.x - LAKE.rx, 0, LAKE.x + LAKE.rx, 0); lg.addColorStop(0, w0); lg.addColorStop(1, w1);
+    c.fillStyle = lg; ell(c, LAKE.x, LAKE.y, LAKE.rx, LAKE.ry); c.fill();
+    c.fillStyle = 'rgba(24,84,140,.12)'; ell(c, LAKE.x + 40, LAKE.y + 60, LAKE.rx * .62, LAKE.ry * .66); c.fill(); // deeper middle
+  }
   // foam along the shore; it creeps slowly (stands still with reduced motion)
   c.save(); c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 5; c.setLineDash([26, 14, 8, 14]); c.lineDashOffset = calm() ? 0 : -t * 6;
   ell(c, LAKE.x, LAKE.y, LAKE.rx - 5, LAKE.ry - 5); c.stroke(); c.restore();
@@ -1884,6 +1931,7 @@ function drawGround(c, v, t) {
   c.fillStyle = '#e9dba9'; circ(c, ISLAND.x, ISLAND.y, ISLAND.r + 12); c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke();
   c.save(); c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 4; c.setLineDash([20, 12]); c.lineDashOffset = calm() ? 0 : t * 5; circ(c, ISLAND.x, ISLAND.y, ISLAND.r + 18); c.stroke(); c.restore();
   c.fillStyle = '#a7d77c'; circ(c, ISLAND.x, ISLAND.y, ISLAND.r); c.fill();
+  if (GFX.a) islandLight(c);
     c.restore();
   }
   if (v.x1 > PLAZA.x && v.x0 < PLAZA.x + PLAZA.w && v.y1 > PLAZA.y && v.y0 < PLAZA.y + PLAZA.h) drawFountain(c, t);
@@ -1902,10 +1950,10 @@ function drawGround(c, v, t) {
 }
 const boatBob = t => Math.sin(t * 2) * 2;
 function hullPath(c, x, y) { c.beginPath(); c.moveTo(x - 36, y - 8); c.lineTo(x + 36, y - 8); c.lineTo(x + 26, y + 10); c.lineTo(x - 26, y + 10); c.closePath(); }
-function drawBoat(c, x, y, t) { const b = boatBob(t); c.fillStyle = 'rgba(20,60,110,.18)'; ell(c, x, y + 12, 34, 6); c.fill(); hullPath(c, x, y + b); c.fillStyle = '#f7f7fb'; c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke(); c.fillStyle = '#FF6FAE'; c.fillRect(x - 31, y - 2 + b, 62, 4); c.fillStyle = '#39a0d8'; c.fillRect(x - 6, y - 26 + b, 12, 16); }
+function drawBoat(c, x, y, t) { const b = boatBob(t); if (GFX.a && paintOn()) castShadow(c, x + 4, y + 12, 64, .8); else { c.fillStyle = 'rgba(20,60,110,.18)'; ell(c, x, y + 12, 34, 6); c.fill(); } hullPath(c, x, y + b); c.fillStyle = '#f7f7fb'; c.fill(); c.strokeStyle = INK; c.lineWidth = 1.4; c.stroke(); c.fillStyle = '#FF6FAE'; c.fillRect(x - 31, y - 2 + b, 62, 4); c.fillStyle = '#39a0d8'; c.fillRect(x - 6, y - 26 + b, 12, 16); }
 function drawFountain(c, t) {
   const F = FOUNTAIN;
-  c.fillStyle = 'rgba(0,0,0,.15)'; ell(c, F.x + 4, F.y + 6, F.r + 4, F.r * .55 + 4); c.fill();
+  if (GFX.a && paintOn()) castShadow(c, F.x + 6, F.y + 6, F.r * 2.1); else { c.fillStyle = 'rgba(0,0,0,.15)'; ell(c, F.x + 4, F.y + 6, F.r + 4, F.r * .55 + 4); c.fill(); }
   c.fillStyle = '#e7dcc8'; ell(c, F.x, F.y, F.r, F.r * .62); c.fill();
   c.fillStyle = hexMix('#8EDDF2', Sky.mid, Math.max(Sky.dark, Sky.warm * .7) * .6); ell(c, F.x, F.y, F.r - 6, F.r * .62 - 5); c.fill();
   c.fillStyle = '#d6cbb3'; rr(c, F.x - 4, F.y - 22, 8, 22, 3); c.fill();
@@ -3429,6 +3477,8 @@ if (TEST) window.__kmDebug = () => ({
     playerFrames: Paint.chars.has(Paint.player) ? Paint.chars.get(Paint.player).frames.size : 0,
     builds: Paint.builds.size, buildMoods: [...new Set([...Paint.builds.values()].map(b => b.mood))],
     bakes: Paint.bakes, bakeMs: Math.round(Paint.bakeMs), fallbacks: Paint.fallbacks, layers: Paint.layers, foreBuilds: Paint.foreBuilds, vigOn: Paint.vigOn },
+  // GAMES-GRAPHICS tiers (Α light and shadow, Β materials) and the light gradients' mood
+  graphics: { a: GFX.a, b: GFX.b, litMood: Lit.mood, litBakes: Lit.bakes, texMs: GFX.texMs, texBuilds: GFX.texBuilds },
 });
 function boot() {
   buildWorld(); heroInit(); spawnLife(); resize();

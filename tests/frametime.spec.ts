@@ -8,7 +8,8 @@
 //   candidate = no gfx override        : the default «Κανονικά»
 // slowFrameMs 1e9 (test config) keeps «Λιγότερα εφέ» from switching on by itself on the throttled CPU, so the gate
 // measures the full look. The config travels in sessionStorage to the init script (test only, never in the game).
-// Gates (thresholds in tests/frametime.json): candidate p95 <= reference p95 x (1 + maxGrowth); and candidate
+// Gates (thresholds in tests/frametime.json): candidate p95 <= reference p95 x (1 + maxGrowth); candidate frames >=
+// reference frames x minFrameRatio (the raster cost); and candidate
 // p95 <= p95MaxMs whenever the reference itself meets p95MaxMs on this machine. The numbers go to the log
 // (FRAMETIME {...}) and to the test annotations; FRAMETIME_OUT=<file> appends them as one JSON line.
 // CI runs it in its own step, alone on the machine (tag @frametime: the main step skips it with --grep-invert):
@@ -96,5 +97,6 @@ test('frame time with the CPU 4x slower: p95 within the GAMES-GRAPHICS budget @f
   expect(ref.length, 'enough reference frames').toBeGreaterThan(30);
   expect(cand.length, 'enough candidate frames').toBeGreaterThan(30);
   expect(res.candidate.p95Ms, `candidate p95 vs reference p95 ${res.reference.p95Ms} ms + ${CFG.maxGrowth * 100} %`).toBeLessThanOrEqual(limit);
+  expect(cand.length, `frames drawn: candidate vs reference ${ref.length} x ${CFG.minFrameRatio} (the drawing cost the callback time misses)`).toBeGreaterThanOrEqual(Math.floor(ref.length * CFG.minFrameRatio));
   if (absolute) expect(res.candidate.p95Ms, `p95 <= ${CFG.p95MaxMs} ms («Κανονικά»)`).toBeLessThanOrEqual(CFG.p95MaxMs);
 });
