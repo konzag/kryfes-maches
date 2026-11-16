@@ -76,7 +76,7 @@ in the games-hub matrix.
 | idempotency | yes | partial | tests/save.spec.ts «erasing a slot… sends a tombstone, not a DELETE», tests/smoke.spec.ts «offline save synced later» | PR CI | No test that the same save sent twice (retry) leaves one unchanged slot |
 | error handling | yes | yes | tests/smoke.spec.ts (0 console errors, 503 silent), tests/save.spec.ts (blocked localStorage, unreadable save) | PR CI | |
 | network | infra: homelab-scripts | | | | App part (offline / 503 never shows an error) is in rows error handling and idempotency |
-| offline/PWA | no | | | | No service worker (owner rule; GAMES-OFFLINE dropped 29/10) |
+| offline/PWA | yes (in the hub) | yes | tests/offline.spec.ts (no own service worker or manifest, every loaded file same-origin); games-hub e2e/offline.spec.ts (starts and plays offline through the hub's worker) | PR CI | The hub's one service worker serves the game offline since 2026-11-16 (games-hub ADR-0008); level B saves are never cached, they sync later as before |
 | resilience/failover | infra: homelab-scripts | | acceptance KM-30, KM-59 (manual: hub restart) | | App part: hub down = level A saves (tests/smoke.spec.ts 503) |
 | recovery/disaster recovery | infra: homelab-scripts | | | | |
 | backup/restore | infra: homelab-scripts | | | | The saves are backed up with the games-hub data |
