@@ -1,5 +1,5 @@
 {
-  "_doc": "GAMES-GRAPHICS §4 frame-time gate (tests/frametime.spec.ts). Tablet project (1180x820, pixel ratio 2), CPU slowed down by the CDP rate below, 10 s of play in the city per variant (noon, by the lake and the promenade). 'reference' = test config gfx 'base' (the look before GAMES-GRAPHICS), 'candidate' = the default «Κανονικά». Both run in the same test on the same machine, interleaved in segments (ref, cand, cand, ref, ...), so the relative gate does not depend on which CI machine runs it.",
+  "_doc": "GAMES-GRAPHICS §4 frame-time gate (tests/frametime.spec.ts). Tablet project (1180x820, pixel ratio 2), CPU slowed down by the CDP rate below, 10 s of play in the city per variant (noon, by the lake and the promenade). 'reference' = test config gfx 'base' (the look before GAMES-GRAPHICS), 'candidate' = the default «🎨 Γραφικά: Αυτόματα» (tier Β with its automatic fall-back to tier Α on a slow device, asserted by the test). Both run in the same test on the same machine, interleaved in segments (ref, cand, cand, ref, ...), so the relative gate does not depend on which CI machine runs it.",
   "cpuThrottle": 4,
   "playMsPerVariant": 10000,
   "segments": 4,

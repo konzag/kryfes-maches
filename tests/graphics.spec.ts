@@ -1,5 +1,6 @@
 // GAMES-GRAPHICS (games-template docs/specs/GAMES-GRAPHICS.md), L1-26: tier Α (light and shadow) and tier Β
-// (code-made materials) in the city. The tiers are on by default («Κανονικά»); the test hook config `gfx`
+// (code-made materials) in the city. Both tiers are on by default («🎨 Γραφικά: Αυτόματα» on a fast device; the test
+// config gfxSlowMs 1e9 keeps the automatic fall-back of tests/tier.spec.ts away here); the test hook config `gfx`
 // ('base' = the look before, 'a' = tier Α only) switches them off only to compare. The pixel checks draw the ground
 // (drawGround, the same function a frame uses) into an offscreen canvas, once with a tier off and once on, and
 // compare small blocks of it, so they do not depend on the camera or on the moving life of the city.
@@ -17,7 +18,7 @@ async function open(page: Page, config: Record<string, unknown> = {}) {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.addInitScript((cfg) => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, forceHour: 12, ...cfg } }; }, config);
+  await page.addInitScript((cfg) => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, gfxSlowMs: 1e9, forceHour: 12, ...cfg } }; }, config);
   await page.goto('/');
   await expect.poll(() => page.evaluate(() => typeof (window as any).__kmDebug)).toBe('function');
   return errors;
@@ -93,6 +94,34 @@ test.describe('GAMES-GRAPHICS tiers', () => {
     // the title camera sweeps the city; drawing the lake once sets the light's mood
     await page.evaluate(() => { const v = { x0: 2080, y0: 180, x1: 3180, y1: 2020 }; const c = document.createElement('canvas').getContext('2d')!; drawGround(c, v, 0); });
     expect((await graphics(page)).litMood).toBe(await page.evaluate(() => Paint.mood));
+    expect(errors).toEqual([]);
+  });
+
+  test('tier Β: asphalt, paving stones, park grass and the beach get a material instead of one flat colour', async ({ page }) => {
+    const errors = await open(page);
+    // the first avenue (above its lane line), the plaza between two joints, the park lawn, the promenade
+    const city = await ground(page, 'b', 'day', [200, 900, 1900, 800], [[300, 968, 60, 16], [1000, 1100, 20, 40], [1330, 1080, 40, 40], [2020, 1300, 40, 60]]);
+    const lake = await ground(page, 'b', 'day', LAKE_BOX, [[2620, 2003, 40, 8]]); // the beach below the lake
+    const names = ['asphalt', 'plaza', 'park', 'promenade', 'beach'];
+    [...city.off, ...lake.off].forEach((off, i) => {
+      const on = [...city.on, ...lake.on][i];
+      expect(on.sd, `${names[i]}: more detail with the material`).toBeGreaterThan(off.sd + 2);
+      expect(Math.abs(on.lum - off.lum), `${names[i]}: same colour overall`).toBeLessThan(25);
+    });
+    const g = await graphics(page);
+    expect(g.texBuilds, 'the tiles are made once').toBe(1);
+    expect(g.texMs).toBeGreaterThan(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('tier Β: the open meadow and the water keep their light look (no full-screen pattern), «Λιγότερα εφέ» keeps the materials', async ({ page }) => {
+    const errors = await open(page);
+    await page.evaluate(() => (window as any).setLowFx(true));
+    const city = await ground(page, 'b', 'day', [200, 900, 1300, 800], [[250, 1100, 60, 60], [300, 968, 60, 16]]);
+    expect(Math.abs(city.on[0].sd - city.off[0].sd), 'meadow: unchanged').toBeLessThan(0.5);
+    expect(city.on[1].sd, 'asphalt: still a material').toBeGreaterThan(city.off[1].sd + 2);
+    const lake = await ground(page, 'b', 'day', LAKE_BOX, [[2500, 1500, 60, 60]]);
+    expect(Math.abs(lake.on[0].sd - lake.off[0].sd), 'open water: unchanged').toBeLessThan(0.5);
     expect(errors).toEqual([]);
   });
 });

@@ -261,7 +261,7 @@ for (const scheme of ['light', 'dark'] as const) {
 test('wardrobe → town: the hero\'s sprite cache is keyed per look and rebuilt on a wardrobe change', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'one project is enough');
   const problems = await watch(page);
-  await page.addInitScript(() => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9 } }; });
+  await page.addInitScript(() => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, gfxSlowMs: 1e9 } }; });
   const paint = () => page.evaluate(() => (window as any).__kmDebug().paint as { player: string; looks: string[]; playerFrames: number });
   const look = () => page.evaluate(() => JSON.stringify((G as any).S.look));
   await toHouse(page);
