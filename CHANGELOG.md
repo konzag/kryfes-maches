@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- PERF-TIER-B (games-hub Lighthouse phone budget, /kryfes-maches/ >= 90: 79 with 77df72f, 89 with 23c6251): the tier Β
+  materials (775c4e7, ce0ffc4) were made in the first frame and drawn from the first frames of the title, which about
+  doubled the software drawing of every title frame while the page loads (total blocking time ~200 -> ~600-1500 ms).
+  The tiles are now made `CONFIG.gfxDelayMs` (3 s) after the load event, one per idle slot (`matSoon`, `matBuild`,
+  `MAT_PX`), or at once when the player presses «🎨 Γραφικά»; surfaces keep their plain colour until `Mat.ready`.
+  «Αυτόματα» measures tier Β only while it is on the screen (`watchTier` waits for `Mat.ready`); the fall-back, the
+  choices and the stored key are unchanged. `__kmDebug().graphics.ready`; tier.spec +1 (x2 projects); graphics.spec and
+  the pixel check of tier.spec wait for the materials; frametime.spec runs with `gfxDelayMs: 0` (gates unchanged).
+  README KM-73. Test-count floor 375 -> 381.
 - «🎨 Γραφικά: Αυτόματα / Κανονικά / Πλούσια» with an automatic fall-back of tier Β (owner decision 16/11 §2, option b):
   `#bGfx` in the settings row of the title and pause screens (EL + EN, same wording as magic-islands). «Αυτόματα» (the
   default) = tier Β until the median frame gap stays over `CONFIG.gfxSlowMs` (20 ms) for `gfxSlowSec` (3 s) on the

@@ -10,7 +10,7 @@ import { expect, test, type Page } from '@playwright/test';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare const GFX: any, Paint: any, PALETTE: any;
 declare function drawGround(c: CanvasRenderingContext2D, v: object, t: number): void;
-type Graphics = { a: boolean; b: boolean; litMood: string; texMs: number; texBuilds: number };
+type Graphics = { a: boolean; b: boolean; litMood: string; texMs: number; texBuilds: number; ready: boolean };
 type Block = { r: number; g: number; b: number; lum: number; sd: number };
 const graphics = (page: Page) => page.evaluate(() => (window as any).__kmDebug().graphics as Graphics);
 
@@ -21,6 +21,8 @@ async function open(page: Page, config: Record<string, unknown> = {}) {
   await page.addInitScript((cfg) => { (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, gfxSlowMs: 1e9, forceHour: 12, ...cfg } }; }, config);
   await page.goto('/');
   await expect.poll(() => page.evaluate(() => typeof (window as any).__kmDebug)).toBe('function');
+  // tier Β materials are made after the page has loaded (PERF-TIER-B): the pixel checks need them
+  await expect.poll(async () => { const g = await graphics(page); return g.ready || !g.b; }, { timeout: 15_000 }).toBe(true);
   return errors;
 }
 
