@@ -67,7 +67,9 @@ test('frame time with the CPU 4x slower: p95 within the GAMES-GRAPHICS budget @f
   await page.addInitScript(() => {
     let extra = {};
     try { extra = JSON.parse(sessionStorage.getItem('km-ft-config') || '{}'); } catch { /* none */ }
-    (window as any).__KM_TEST__ = { config: { forceHour: 12, slowFrameMs: 1e9, ...extra } }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    // gfxDelayMs 0: the tier Β materials as soon as the page has loaded (the game waits CONFIG.gfxDelayMs, PERF-TIER-B), so
+    // every short segment measures tier Β in play as before and the gates stay as strict
+    (window as any).__KM_TEST__ = { config: { forceHour: 12, slowFrameMs: 1e9, gfxDelayMs: 0, ...extra } }; // eslint-disable-line @typescript-eslint/no-explicit-any
     const raf = window.requestAnimationFrame.bind(window), F = { on: false, list: [] as number[], gaps: [] as number[], last: 0 };
     (window as any).__ft = F; // eslint-disable-line @typescript-eslint/no-explicit-any
     window.requestAnimationFrame = (cb) => raf((ts) => {
@@ -117,7 +119,7 @@ test('frame time with the CPU 4x slower: p95 within the GAMES-GRAPHICS budget @f
   if (absolute) expect(res.candidate.p95Ms, `p95 <= ${CFG.p95MaxMs} ms («Αυτόματα»)`).toBeLessThanOrEqual(CFG.p95MaxMs);
 });
 
-// GAMES-GRAPHICS §4, tier Β: the materials are made once, the first time the ground is drawn, and cost <= texturesMaxMs
+// GAMES-GRAPHICS §4, tier Β: the materials are made once, after the page has loaded (PERF-TIER-B), and cost <= texturesMaxMs
 // (tests/frametime.json) with the CPU 4x slower. GFX.texMs is the real drawing time (after a one-pixel read of each tile).
 test('materials (tier Β) are made once, within the load budget with the CPU 4x slower @frametime', async ({ page }, info) => {
   expect(info.project.name, 'tablet project only (playwright.config.ts)').toBe('tablet');
