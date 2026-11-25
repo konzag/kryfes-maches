@@ -32,7 +32,7 @@ test('frame budget (informative)', async ({ page }, info) => {
   test.skip(!process.env.PERF || info.project.name !== 'tablet', 'only with PERF=1, tablet project');
   test.setTimeout(180_000);
   await page.addInitScript(() => {
-    (window as any).__KM_TEST__ = { config: { forceHour: 12, slowFrameMs: 1e9 } };
+    (window as any).__KM_TEST__ = { config: { forceHour: 12, slowFrameMs: 1e9, gfxSlowMs: 1e9 } };
     const raf = window.requestAnimationFrame.bind(window), P = { on: false, list: [] as number[], frames: 0, t0: 0 };
     (window as any).__perf = P;
     window.requestAnimationFrame = (cb) => raf((ts) => { const t0 = performance.now(); try { cb(ts); } finally { if (P.on) P.list.push(performance.now() - t0); } });

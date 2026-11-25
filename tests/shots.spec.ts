@@ -7,7 +7,7 @@ declare const G: any;
 const DIR = 'docs/screens';
 
 async function hook(page: Page, hour: number) {
-  await page.addInitScript((h) => { (window as any).__KM_TEST__ = { config: { forceHour: h, slowFrameMs: 1e9 } }; }, hour);
+  await page.addInitScript((h) => { (window as any).__KM_TEST__ = { config: { forceHour: h, slowFrameMs: 1e9, gfxSlowMs: 1e9 } }; }, hour);
 }
 
 async function city(page: Page, x: number, y: number) {

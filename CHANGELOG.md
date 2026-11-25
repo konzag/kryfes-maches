@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+- «🎨 Γραφικά: Αυτόματα / Κανονικά / Πλούσια» with an automatic fall-back of tier Β (owner decision 16/11 §2, option b):
+  `#bGfx` in the settings row of the title and pause screens (EL + EN, same wording as magic-islands). «Αυτόματα» (the
+  default) = tier Β until the median frame gap stays over `CONFIG.gfxSlowMs` (20 ms) for `gfxSlowSec` (3 s) on the
+  title screen or while playing (not paused or hidden), then tier Α, remembered per device in `kryfes-maches.gfx.v1`
+  (JSON `{pick, slow}`, try/catch); «Κανονικά» = tier Α, «Πλούσια» = tier Β, never overruled. Pure decision functions
+  (`tierTrack`, `tierSlow`, `tierOf`, `tierPick`) between `tier:pure` markers, with node unit tests
+  (`tests/unit/gfx-tier.unit.mjs`, CI step `npm run test:unit`; K9 `unit-tests` present, allowlist entry removed). New
+  `tests/tier.spec.ts` (test hook `fakeFrameMs`); the frame-time gate now runs the candidate as a new device and asserts
+  the fall-back when its median frame gap is over the limit. README KM-72.
+- EL + EN shell (owner 02/11, Block 7): `I18N` (`el` / `en`), `tr()`, `applyLang()`; «EN» / «ΕΛ» button (`#bLang`) in the
+  settings row of the title and pause screens; the menus (title, slots, create, intro heading, pause, lost, end
+  buttons), theme / «Λιγότερα εφέ» labels, the shell and touch-pad aria-labels, the wardrobe bar and the rotate message
+  follow it, and `<html lang>`. Story texts stay Greek. Key `games.lang` (shared with the hub; only 'en' counts,
+  try/catch), never in the save. New `tests/lang.spec.ts`; README KM-70; K9 `el-en-strings` present, allowlist entry removed.
+- GAMES-GRAPHICS tier Β, code-made materials (L1-26 step 3): 128x128 tileable tiles (value noise that wraps) for
+  asphalt, paving stones, sand and grass, made once at the first ground draw (`matTiles`, `GFX.texMs`; ~35-40 ms at
+  CPU 4x, budget 300). Roads, parking, promenade, plaza, park, the beaches (rings only) and the island's lawn are
+  filled once with a pattern of their material over their own colour (`matFill`), instead of the flat colour. The
+  open meadow and open water keep their look: a full-screen pattern cost too much frame time in software drawing.
+  graphics.spec +2 (x2 projects), frametime.spec +1 (materials budget, @frametime); README KM-71.
+
+- GAMES-GRAPHICS tier Α, light and shadow (L1-26 step 2): the lake takes the key light (sun / sunset / moon glow on
+  the far top-left water, the near bottom-right water in the shade, the island's soft shadow on the water along the
+  light, the island lit from the top left); the fountain and the boats get `castShadow` like the houses. Gradients
+  made again only when the mood changes (`Lit`). `GFX` flags; test config `gfx` ('base' / 'a') only to compare.
+  New `tests/graphics.spec.ts` (3), `__kmDebug().graphics`; README KM-69. Save key and format unchanged.
+
+- GAMES-GRAPHICS step 1 (L1-26, «before»): `tests/frametime.spec.ts` (@frametime, tablet project, CPU 4x slower via
+  CDP, 10 s in the city per variant, ABBA-interleaved): candidate p95 <= reference p95 + 10 %, and <= 20 ms where the
+  reference meets it; thresholds and the «before» numbers in `tests/frametime.json`. CI runs it alone in its own step.
+  Reference = test config `gfx: 'base'` (the look before GAMES-GRAPHICS; no effect until tier Α). The game does not
+  change. Test-count floor 341 -> 342.
+
 - NIGHT-2 (2026-11-10): CodeQL (`.github/workflows/codeql.yml`: javascript-typescript, which reads the inline
   script of index.html, and actions; buildless, security-extended, GitHub-hosted, actions pinned by SHA) next to
   Semgrep + Gitleaks; `tests/codeql-workflow.spec.ts` keeps it that way. README row KM-68 for the page head and noindex.
