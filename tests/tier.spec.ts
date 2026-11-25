@@ -16,7 +16,7 @@ declare const G: any, CONFIG: any;
 declare function drawGround(c: CanvasRenderingContext2D, v: object, t: number): void;
 const KEY = 'kryfes-maches.gfx.v1';
 const SAVE_KEY = 'game.kryfes-maches.v1';
-type Graphics = { a: boolean; b: boolean; pick: string; slow: boolean; tier: string };
+type Graphics = { a: boolean; b: boolean; pick: string; slow: boolean; tier: string; ready: boolean };
 const graphics = (page: Page) => page.evaluate(() => (window as any).__kmDebug().graphics as Graphics);
 const stored = (page: Page) => page.evaluate((k) => localStorage.getItem(k), KEY);
 const gfxBtn = (page: Page) => page.locator('#bGfx');
@@ -25,7 +25,8 @@ const gfxBtn = (page: Page) => page.locator('#bGfx');
 async function open(page: Page, config: Record<string, unknown> = {}, opts: { keep?: boolean } = {}) {
   const errors = await watch(page); // console errors, page errors, CSP violations (the hub save API's 503 is allowed)
   await page.addInitScript(([cfg, key, keep]) => {
-    (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, forceHour: 12, ...(cfg as object) } };
+    // gfxDelayMs 0: the materials as soon as the page has loaded (the game waits 3 s, PERF-TIER-B; its own test below)
+    (window as any).__KM_TEST__ = { config: { slowFrameMs: 1e9, forceHour: 12, gfxDelayMs: 0, ...(cfg as object) } };
     // a fresh device once per test (first load only); reloads keep what the game stored
     if (!keep && !sessionStorage.getItem('km-tier-fresh')) { sessionStorage.setItem('km-tier-fresh', '1'); localStorage.removeItem(key as string); }
   }, [config, KEY, !!opts.keep] as const);
@@ -44,8 +45,13 @@ async function toCity(page: Page) {
   await expect.poll(() => page.evaluate(() => G.mode)).toBe('city');
 }
 
-/** The ground of the first avenue, the plaza and the park, drawn with the game's current tiers: a pixel fingerprint. */
-const groundPixels = (page: Page) => page.evaluate(() => {
+/** The ground of the first avenue, the plaza and the park, drawn with the game's current tiers: a pixel fingerprint.
+ * With tier Β it waits for the materials, which are made after the page has loaded (PERF-TIER-B). */
+const groundPixels = async (page: Page) => {
+  await expect.poll(async () => { const g = await graphics(page); return !g.b || g.ready; }, { timeout: 15_000 }).toBe(true);
+  return pixels(page);
+};
+const pixels = (page: Page) => page.evaluate(() => {
   const c = document.createElement('canvas'); c.width = 475; c.height = 200;
   const x = c.getContext('2d', { willReadFrequently: true })!; x.setTransform(0.25, 0, 0, 0.25, -50, -225);
   drawGround(x, { x0: 200, y0: 900, x1: 2100, y1: 1700 }, 0);
@@ -139,6 +145,22 @@ test.describe('«🎨 Γραφικά» and the automatic fall-back of tier Β', 
     await gfxBtn(page).click(); await expect(gfxBtn(page)).toHaveText('🎨 Graphics: Rich');
     const axe = await new AxeBuilder({ page }).include('#screen').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
     expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  test('PERF-TIER-B: the materials come after the page has loaded; only tier Β on the screen is measured', async ({ page }) => {
+    const errors = await open(page, { fakeFrameMs: 40, gfxDelayMs: 6000 });
+    const first = await graphics(page);
+    expect(first, 'tier Β chosen, its materials not made yet').toMatchObject({ b: true, ready: false, slow: false });
+    const plain = await pixels(page);
+    await page.waitForTimeout(4500); // slow frames, but tier Β is not on the screen yet: nothing to measure
+    expect(await graphics(page), 'no fall-back before the materials are on the screen').toMatchObject({ b: true, ready: false, slow: false });
+    expect(await stored(page)).toBeNull();
+    await expect.poll(async () => (await graphics(page)).ready, { timeout: 15_000 }).toBe(true);
+    expect(await pixels(page), 'the materials are drawn once made').not.toBe(plain);
+    await expect.poll(async () => (await graphics(page)).b, { timeout: 15_000 }).toBe(false); // then measured and fallen back
+    expect(JSON.parse((await stored(page))!)).toEqual({ pick: 'auto', slow: true });
+    expect(await pixels(page), 'the fall-back draws the plain surfaces again').toBe(plain);
     expect(errors).toEqual([]);
   });
 

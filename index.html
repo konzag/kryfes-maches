@@ -286,6 +286,7 @@ const CONFIG = {
   gfx: null,                      // tests only (through the test hook): 'base' = the look before GAMES-GRAPHICS, 'a' = tier Α only
   gfxSlowMs: 20,                  // «🎨 Γραφικά: Αυτόματα»: tier Β gives way to tier Α when the median frame stays over this ...
   gfxSlowSec: 3,                  // ... for this long (on the title screen and while playing); remembered per device
+  gfxDelayMs: 3000,               // tier Β materials are made this long after the page has loaded (PERF-TIER-B), in idle time
   fakeFrameMs: null,              // tests only (through the test hook): the frame time that watch sees instead of the real one
 };
 /* Test hook: Playwright sets window.__KM_TEST__ = { config: {...} } with addInitScript before the page loads.
@@ -692,7 +693,7 @@ function applyTier() {
   const b = $('bGfx'); if (b) b.textContent = gfxLabel();
 }
 /* The button cycles Αυτόματα → Κανονικά → Πλούσια → Αυτόματα; choosing «Αυτόματα» again measures this device anew. */
-function nextGfx() { Tier.pick = { auto: 'normal', normal: 'rich', rich: 'auto' }[Tier.pick]; Tier.slow = false; Tier.gaps.length = 0; saveTier(); applyTier(); }
+function nextGfx() { Tier.pick = { auto: 'normal', normal: 'rich', rich: 'auto' }[Tier.pick]; Tier.slow = false; Tier.gaps.length = 0; saveTier(); applyTier(); matSoon(0); }
 /* Theme + «Λιγότερα εφέ» + «🎨 Γραφικά» + language buttons, on the title and pause screens. */
 function settingsRow() {
   const th = btn(themeLabel(), () => { cycleTheme(); th.textContent = themeLabel(); }, 'ghost');
@@ -1909,14 +1910,18 @@ function grassSprites() {
    park, parking, castle floor), each drawn only where the view is. A cache of ground tiles was measured and dropped:
    drawing a new tile cost more, while walking, than copying the tiles saved. The lake, the fountain, the docks and
    the boats follow. */
-/* Tier Β (GAMES-GRAPHICS §1): materials made with code, once, the first time the ground is drawn (no image files, no
-   network): 128x128 tileable tiles of light and dark flecks with alpha (value noise that wraps at the tile edge) for
+/* Tier Β (GAMES-GRAPHICS §1): materials made with code, once (no image files, no network): 128x128 tileable tiles of light and dark flecks with alpha (value noise that wraps at the tile edge) for
    asphalt, paving stones, sand and grass. Each surface (roads, parking, promenade, plaza, park, the beaches of the lake
    and the island, the island's lawn) is filled once with a pattern of its material laid over its own colour, instead
    of the flat colour: one fill as before. The open meadow and the open water keep their look: a pattern over the whole
    screen cost too much frame time in software drawing (measured, tests/frametime.spec.ts). MAT_SCALE: world units
-   per tile pixel. GFX.texMs is the real drawing time of the tiles (after a one-pixel read). */
-const Mat = { tiles: null, pats: null, ctx: null };
+   per tile pixel. GFX.texMs is the real drawing time of the tiles (after a one-pixel read).
+   PERF-TIER-B (2026-11-25): the tiles are made AFTER the page has loaded and settled (CONFIG.gfxDelayMs after the
+   load event, or at once when the player picks a graphics setting), one tile per idle slot, never in a frame; until
+   then the surfaces keep their plain colour (tier Α). Tier Β on the screen from the first frames made every frame of
+   the title cost about twice as much software drawing while the page loads (games-hub Lighthouse phone 89 -> 79).
+   «Αυτόματα» measures tier Β only while tier Β is really on the screen (watchTier), so the fall-back is unchanged. */
+const Mat = { tiles: null, pats: null, ctx: null, ready: false, queued: false };
 function matNoise(r, n) { // n x n lattice of random values, read smoothly and wrapping
   const g = new Float32Array(n * n); for (let i = 0; i < g.length; i++) g[i] = r();
   const sm = t => t * t * (3 - 2 * t);
@@ -1931,33 +1936,38 @@ function matTile(seed, px) { // px(r, x, y, n1, n2) -> [r, g, b, a] for each pix
   x.putImageData(d, 0, 0); return c;
 }
 const fleck = (light, dark, k) => (r, i, y, a, b) => { const v = a * .6 + b * .4 - .5 + (r() - .5) * .25; return v > 0 ? [...light, Math.min(255, v * k)] : [...dark, Math.min(255, -v * k)]; };
-function matTiles() {
-  if (Mat.tiles) return Mat.tiles;
-  const t0 = performance.now();
-  Mat.tiles = {
-    grass: matTile(11, (r, i, y, a, b) => { const v = a * .55 + b * .45 - .5; if (r() < .035) return [236, 255, 196, 120]; return v > 0 ? [226, 250, 180, Math.min(255, v * 260)] : [36, 82, 30, Math.min(255, -v * 300)]; }),
-    asphalt: matTile(12, (r, i, y, a, b) => { const s = r(); if (s < .06) return [235, 230, 245, 55]; if (s < .12) return [20, 16, 34, 70]; const v = a * .7 + b * .3 - .5; return v > 0 ? [200, 196, 220, v * 120] : [18, 14, 32, -v * 150]; }),
-    paving: matTile(13, (r, i, y, a, b) => { // stones 32 x 16 in running bond, dark joints, a tone per stone
-      const row = y >> 4, sx = (i + (row & 1) * 16) & 31, sy = y & 15;
-      if (sx === 0 || sy === 0) return [92, 70, 52, 120];
-      const tone = ((Math.imul(row + 7, 2654435761) ^ Math.imul(((i + (row & 1) * 16) >> 5) + 3, 40503)) >>> 0) % 5;
-      const v = (tone - 2) * .09 + (b - .5) * .22; return v > 0 ? [255, 248, 228, v * 230] : [110, 84, 60, -v * 200];
-    }),
-    sand: matTile(14, fleck([255, 248, 222], [150, 116, 70], 300)),
-  };
-  for (const k in Mat.tiles) Mat.tiles[k].getContext('2d').getImageData(0, 0, 1, 1); // the drawing really done
-  GFX.texMs = +(performance.now() - t0).toFixed(1); GFX.texBuilds++;
-  return Mat.tiles;
+const MAT_PX = { // material -> [seed, pixel function]
+  grass: [11, (r, i, y, a, b) => { const v = a * .55 + b * .45 - .5; if (r() < .035) return [236, 255, 196, 120]; return v > 0 ? [226, 250, 180, Math.min(255, v * 260)] : [36, 82, 30, Math.min(255, -v * 300)]; }],
+  asphalt: [12, (r, i, y, a, b) => { const s = r(); if (s < .06) return [235, 230, 245, 55]; if (s < .12) return [20, 16, 34, 70]; const v = a * .7 + b * .3 - .5; return v > 0 ? [200, 196, 220, v * 120] : [18, 14, 32, -v * 150]; }],
+  paving: [13, (r, i, y, a, b) => { // stones 32 x 16 in running bond, dark joints, a tone per stone
+    const row = y >> 4, sx = (i + (row & 1) * 16) & 31, sy = y & 15;
+    if (sx === 0 || sy === 0) return [92, 70, 52, 120];
+    const tone = ((Math.imul(row + 7, 2654435761) ^ Math.imul(((i + (row & 1) * 16) >> 5) + 3, 40503)) >>> 0) % 5;
+    const v = (tone - 2) * .09 + (b - .5) * .22; return v > 0 ? [255, 248, 228, v * 230] : [110, 84, 60, -v * 200];
+  }],
+  sand: [14, fleck([255, 248, 222], [150, 116, 70], 300)],
+};
+const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 500 }) : setTimeout(f, 50));
+function matBuild() { // one tile per idle slot; tier Β is on the screen once all four are made
+  const k = Object.keys(MAT_PX).find(n => !Mat.tiles[n]); if (!k) return;
+  const t0 = performance.now(), t = Mat.tiles[k] = matTile(MAT_PX[k][0], MAT_PX[k][1]);
+  t.getContext('2d').getImageData(0, 0, 1, 1); // the drawing really done
+  GFX.texMs = +(GFX.texMs + performance.now() - t0).toFixed(1);
+  if (Object.keys(MAT_PX).every(n => Mat.tiles[n])) { Mat.ready = true; GFX.texBuilds++; } else idle(matBuild);
 }
+/* Make the tiles (once) when tier Β is wanted: `ms` after now, then in idle time. */
+function matSoon(ms) { if (!GFX.b || Mat.queued) return; Mat.queued = true; Mat.tiles = {}; setTimeout(() => idle(matBuild), ms); }
+if (document.readyState === 'complete') matSoon(CONFIG.gfxDelayMs);
+else addEventListener('load', () => matSoon(CONFIG.gfxDelayMs), { once: true });
 const MAT_SCALE = { grass: 2, asphalt: .8, paving: 1, sand: 1 }; // world units per tile pixel
 /* The fill of a surface: with tier Β one pattern of the material laid over the surface's own colour (made once per
    material and colour), so the surface costs one fill as before; without it the plain colour. */
 function matFill(c, k, base) {
-  if (!GFX.b) return base;
+  if (!GFX.b || !Mat.ready) return base;
   if (Mat.ctx !== c) { Mat.ctx = c; Mat.pats = {}; }
   const key = k + base; let p = Mat.pats[key];
   if (!p) {
-    const t = matTiles()[k], m = paintCanvas(t.width, t.height), x = m.getContext('2d'); x.fillStyle = base; x.fillRect(0, 0, m.width, m.height); x.drawImage(t, 0, 0);
+    const t = Mat.tiles[k], m = paintCanvas(t.width, t.height), x = m.getContext('2d'); x.fillStyle = base; x.fillRect(0, 0, m.width, m.height); x.drawImage(t, 0, 0);
     p = Mat.pats[key] = c.createPattern(m, 'repeat'); const s = MAT_SCALE[k]; p.setTransform(new DOMMatrix([s, 0, 0, s, 0, 0]));
   }
   return p;
@@ -3600,7 +3610,8 @@ function watchFrames(ms) {
 /* «🎨 Γραφικά: Αυτόματα»: the frame times (gaps between frames, so the drawing cost counts too) on the title screen
    and while playing; once the median stays over CONFIG.gfxSlowMs for gfxSlowSec, tier Α from now on (stored). */
 function watchTier(raw) {
-  if (Tier.pick !== 'auto' || Tier.slow || CONFIG.gfx || G.paused || document.hidden || (G.mode !== 'title' && G.mode !== 'city')) { Tier.gaps.length = 0; return; }
+  // tier Β is measured only while it is on the screen (its materials made, PERF-TIER-B)
+  if (Tier.pick !== 'auto' || Tier.slow || CONFIG.gfx || !Mat.ready || G.paused || document.hidden || (G.mode !== 'title' && G.mode !== 'city')) { Tier.gaps.length = 0; return; }
   tierTrack(Tier.gaps, CONFIG.fakeFrameMs == null ? raw : CONFIG.fakeFrameMs, CONFIG.gfxSlowSec);
   if (tierSlow(Tier.gaps, CONFIG.gfxSlowMs, CONFIG.gfxSlowSec)) { Tier.slow = true; Tier.gaps.length = 0; saveTier(); applyTier(); }
 }
@@ -3634,7 +3645,7 @@ if (TEST) window.__kmDebug = () => ({
     builds: Paint.builds.size, buildMoods: [...new Set([...Paint.builds.values()].map(b => b.mood))],
     bakes: Paint.bakes, bakeMs: Math.round(Paint.bakeMs), fallbacks: Paint.fallbacks, layers: Paint.layers, foreBuilds: Paint.foreBuilds, vigOn: Paint.vigOn },
   // GAMES-GRAPHICS tiers (Α light and shadow, Β materials) and the light gradients' mood
-  graphics: { a: GFX.a, b: GFX.b, pick: Tier.pick, slow: Tier.slow, tier: tierOf(Tier.pick, Tier.slow), litMood: Lit.mood, litBakes: Lit.bakes, texMs: GFX.texMs, texBuilds: GFX.texBuilds },
+  graphics: { a: GFX.a, b: GFX.b, pick: Tier.pick, slow: Tier.slow, tier: tierOf(Tier.pick, Tier.slow), litMood: Lit.mood, litBakes: Lit.bakes, texMs: GFX.texMs, texBuilds: GFX.texBuilds, ready: Mat.ready },
 });
 function boot() {
   applyLang();
